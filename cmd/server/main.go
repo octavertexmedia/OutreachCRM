@@ -29,8 +29,8 @@ import (
 )
 
 func main() {
-	cfg := config.Load()
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	cfg := config.Load()
 
 	st, err := store.Open(cfg.DataDir)
 	if err != nil {

@@ -10,7 +10,7 @@ tidy:
 	go mod tidy
 
 build:
-	CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(APP_VERSION)" -o bin/$(APP) ./cmd/server
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/$(APP) ./cmd/server
 
 build-size: build
 	@size=$$(stat -f%z bin/$(APP) 2>/dev/null || stat -c%s bin/$(APP)); \

@@ -1,0 +1,144 @@
+# OutReachCRM — pack source, upload to Contabo VPS (same host as AgencyCRM), docker build + nginx.
+#
+# Repo Secrets → Actions:
+#   SSH_PRIVATE_KEY       — deploy private key (pubkey on VPS)
+#   VPS_HOST              — Contabo IP (same as AgencyCRM / vertexcrm.in)
+#   SITE_DOMAIN           — outreach.vertexcrm.in
+# Optional:
+#   SITE_DOMAIN_WWW       — unused unless you want www
+#   VPS_USER              — default root
+#   LETSENCRYPT_EMAIL     — certbot contact
+#
+name: CI/CD — Test & Deploy (Contabo VPS)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOCKER_BUILDKIT: 1
+  APP_DIR: /var/www/outreachcrm
+  REMOTE_STAGING: /tmp/deploy-outreachcrm
+  VPS_AUTO_FIX_DNS: "1"
+  SSH_COMMON_ARGS: -o ServerAliveInterval=15 -o ServerAliveCountMax=200 -o TCPKeepAlive=yes -o Compression=no
+
+jobs:
+  test:
+    name: Go test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache-dependency-path: go.sum
+
+      - name: Go test
+        run: |
+          set -euo pipefail
+          go test ./...
+
+      - name: Binary size gate
+        run: make build-size
+
+  deploy:
+    name: Upload source & deploy to VPS
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create source archive (tracked files only)
+        run: |
+          set -euo pipefail
+          git archive --format=tar.gz -o outreachcrm-src.tar.gz HEAD
+          ls -lh outreachcrm-src.tar.gz
+
+      - uses: webfactory/ssh-agent@v0.9.1
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Prepare compose (local image tag)
+        run: |
+          mkdir -p deploy_files
+          sed 's|ghcr.io/placeholder/outreachcrm:latest|outreachcrm-app:latest|g' \
+            docker-compose.production.yml > deploy_files/docker-compose.yml
+
+      - name: Upload to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          set -euo pipefail
+          U="${VPS_USER:-root}"
+          H="${VPS_HOST}"
+          R="${{ env.REMOTE_STAGING }}"
+          LOCAL_BYTES=$(wc -c < outreachcrm-src.tar.gz | tr -d ' ')
+          echo "Local archive size: ${LOCAL_BYTES} bytes"
+          ssh ${SSH_COMMON_ARGS} "${U}@${H}" "mkdir -p ${R}"
+          for attempt in 1 2 3; do
+            echo "Upload source via SSH stream (attempt ${attempt}/3)..."
+            if cat outreachcrm-src.tar.gz | ssh ${SSH_COMMON_ARGS} "${U}@${H}" \
+              "cat > '${R}/outreachcrm-src.tar.gz.partial' && mv '${R}/outreachcrm-src.tar.gz.partial' '${R}/outreachcrm-src.tar.gz'"; then
+              REMOTE_BYTES=$(ssh ${SSH_COMMON_ARGS} "${U}@${H}" "stat -c%s '${R}/outreachcrm-src.tar.gz'")
+              echo "Remote size: ${REMOTE_BYTES} bytes"
+              if [ "${REMOTE_BYTES}" = "${LOCAL_BYTES}" ]; then
+                echo "Size match — upload OK."
+                break
+              fi
+              echo "Size mismatch, retrying..."
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Upload failed after 3 attempts."
+              exit 1
+            fi
+            sleep 20
+          done
+          scp ${SSH_COMMON_ARGS} deploy_files/docker-compose.yml "${U}@${H}:${R}/"
+
+      - name: Run remote deploy
+        run: |
+          U="${{ secrets.VPS_USER }}"
+          if [ -z "$U" ]; then U=root; fi
+          ssh ${SSH_COMMON_ARGS} "${U}@${{ secrets.VPS_HOST }}" \
+            "export DEPLOY_DIR='${{ env.APP_DIR }}' IMAGE_DIR='${{ env.REMOTE_STAGING }}' SITE_DOMAIN='${{ secrets.SITE_DOMAIN }}' SITE_DOMAIN_WWW='${{ secrets.SITE_DOMAIN_WWW }}' VPS_HOST='${{ secrets.VPS_HOST }}' CERT_EMAIL='${{ secrets.LETSENCRYPT_EMAIL }}' VPS_AUTO_FIX_DNS='${{ env.VPS_AUTO_FIX_DNS }}'; bash -s" \
+            < deploy/contabo-remote.sh
+
+      - name: Health check (Host header)
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          SITE_DOMAIN: ${{ secrets.SITE_DOMAIN }}
+        run: |
+          for i in 1 2 3 4 5 6; do
+            if curl -sf --connect-timeout 15 -H "Host: ${SITE_DOMAIN}" "http://${VPS_HOST}/healthz" -o /dev/null; then
+              echo "OK: /healthz responds with Host: ${SITE_DOMAIN}"
+              exit 0
+            fi
+            echo "retry $i..."
+            sleep 12
+          done
+          exit 1
+
+      - name: Container logs on failure
+        if: failure()
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          U="${VPS_USER:-root}"
+          ssh ${SSH_COMMON_ARGS} "${U}@${VPS_HOST}" \
+            "test -d ${{ env.APP_DIR }} && cd ${{ env.APP_DIR }} && docker compose -f docker-compose.yml logs --tail=120 app" \
+            || echo "Skip logs: ${{ env.APP_DIR }} missing."

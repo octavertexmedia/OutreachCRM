@@ -19,20 +19,25 @@ Bootstrap admin from `BOOTSTRAP_ADMIN_*` when users table is empty. Users belong
 |-------|--------|
 | DB | SQLite WAL + versioned migrations + file backups (`data/backups/`) |
 | Auth | bcrypt + TOTP 2FA + HMAC cookies; API rate limit |
-| Secrets | AES-GCM (`ENCRYPTION_KEY` — treat as your vault secret) |
+| Secrets | OpenBao at **https://secrets.revnext.in/** (AppRole → KV); AES-GCM in-app with `ENCRYPTION_KEY` |
 | Email | SMTP / Gmail+Outlook OAuth XOAUTH2 / Postmark HTTP / SES SMTP |
 | Size | `make build-size` ≤ 30 MB |
+| Prod URL | **https://outreach.vertexcrm.in/** — Contabo VPS with AgencyCRM (`:8003`, `/var/www/outreachcrm`) |
+
+**Production:** Docker Compose + Nginx + Let’s Encrypt. CI: `.github/workflows/deploy.yml`. Runbook: `deploy/DEPLOY.md`. OpenBao KV + AppRole: `deploy/OPENBAO.md`.
 
 ```bash
+# Local (no OpenBao)
 export ENCRYPTION_KEY="$(openssl rand -base64 32)"
 export BOOTSTRAP_ADMIN_EMAIL=you@co.com BOOTSTRAP_ADMIN_PASSWORD='...'
-export SESSION_SECRET='...' PUBLIC_BASE_URL=https://crm.example.com
-# optional TLS
-# export TLS_CERT_FILE=/path/fullchain.pem TLS_KEY_FILE=/path/privkey.pem
+export SESSION_SECRET='...' PUBLIC_BASE_URL=http://localhost:8080
 ./outreachcrm
+
+# Production: OPENBAO_ENABLED=true + AppRole in /var/www/outreachcrm/.env
+# Secrets loaded from secret/data/vertexcrm/outreach/production before config binds.
 ```
 
-Reverse proxy (Caddy/nginx) for TLS is fine if `TLS_*` unset.
+Reverse proxy (nginx on VPS) terminates TLS; leave `TLS_*` unset in the container.
 
 ## 4. The six-step product loop
 
@@ -78,7 +83,7 @@ Dashboard shows the live funnel for steps 1–6.
 
 - **Postgres:** intentionally not dual-driver (size/dialect). Production data path is SQLite + WAL + scheduled snapshots. Mirror to object storage via your VPS cron if needed.
 - **SSO:** TOTP 2FA yes; enterprise SAML/OIDC IdP login not bundled (OAuth is for *mail*, not user login).
-- **KMS:** use env/`ENCRYPTION_KEY` from your secret manager; app decrypts locally.
+- **KMS / secrets:** production loads `ENCRYPTION_KEY` (and peers) from OpenBao KV via AppRole; app still decrypts locally with AES-GCM (not cloud KMS).
 - Enrichment crawl is lightweight HTTP GET — not PageSpeed API.
 
 ## 7. Runbook (short)
@@ -91,6 +96,7 @@ Dashboard shows the live funnel for steps 1–6.
 
 ## 8. Changelog
 
+- 2026-07-16 — Contabo deploy for `outreach.vertexcrm.in` (Docker/nginx `:8003`) + OpenBao AppRole secret overlay (`secrets.revnext.in`, path `vertexcrm/outreach/production`).
 - 2026-07-16 — Company playbooks seed: OctaVertex Media + RevNext (PMS/POS/booking/B2B/CMS/revenue) templates, sequences, ICP leads via `POST /leads/seed-playbooks`.
 - 2026-07-16 — Email Deliverability Engine: validation, bounce/trap/engagement scoring, content/ISP/warmup, auto-suppress, complaint pause, `/deliverability` UI, pre-send gate.
 - 2026-07-16 — Pipeline v4: lead source/company/title/drafts, funnel + queue UI, save/apply AI drafts into sequences, reply suggest + outbound replied tracking, analytics funnel stats.

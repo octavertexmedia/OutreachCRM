@@ -1,0 +1,26 @@
+# Production on Contabo VPS next to AgencyCRM (:8002).
+# Host port 8003 → container :8080. CI rewrites image to outreachcrm-app:latest.
+# OpenBao lives in ~/revnext-secrets (secrets.revnext.in) — never start/stop it here.
+# Bootstrap .env holds OPENBAO_* only; app secrets come from KV.
+
+services:
+  app:
+    image: ghcr.io/placeholder/outreachcrm:latest
+    build:
+      context: ./app-src
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      ADDR: ":8080"
+      DATA_DIR: /data
+      # Host-published OpenBao from ~/revnext-secrets (override in .env).
+      # Prefer docker network alias openbao when linked — set OPENBAO_ADDR in .env.
+      OPENBAO_ADDR: ${OPENBAO_ADDR:-http://172.17.0.1:8200}
+    volumes:
+      - outreach_data:/data
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8003:8080"
+
+volumes:
+  outreach_data:

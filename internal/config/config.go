@@ -1,12 +1,14 @@
 package config
 
 import (
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/manishkumar/outreachcrm/internal/crypto"
+	"github.com/manishkumar/outreachcrm/internal/openbao"
 )
 
 type Config struct {
@@ -42,6 +44,10 @@ type Config struct {
 }
 
 func Load() Config {
+	if _, err := openbao.ApplySecrets(); err != nil {
+		slog.Error("openbao", "err", err)
+		os.Exit(1)
+	}
 	enc := env("ENCRYPTION_KEY", "")
 	if enc == "" {
 		enc = crypto.DevKey()
