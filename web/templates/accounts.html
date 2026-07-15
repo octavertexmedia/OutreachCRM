@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accounts · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="app-body">
+  {{template "nav" .}}
+    <h1>Mail accounts</h1>
+    <p class="sub">Connect Gmail/Outlook via OAuth (XOAUTH2 SMTP + IMAP) or add a classic SMTP account. Credentials are encrypted at rest.</p>
+
+    <div class="panel row-actions">
+      {{if .GoogleEnabled}}
+      <a class="btn" href="/oauth/google/start">Connect Gmail</a>
+      {{else}}
+      <span class="muted">Gmail OAuth not configured (set GOOGLE_CLIENT_ID/SECRET)</span>
+      {{end}}
+      {{if .MSEnabled}}
+      <a class="btn" href="/oauth/microsoft/start">Connect Outlook</a>
+      {{else}}
+      <span class="muted">Outlook OAuth not configured (set MICROSOFT_CLIENT_ID/SECRET)</span>
+      {{end}}
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-top:0;font-size:1.05rem;">Add SMTP account</h2>
+      <form class="inline" method="post" action="/accounts">
+        <label>From email<input name="email" type="email" required></label>
+        <label>SMTP host<input name="smtp_host" required placeholder="smtp.example.com"></label>
+        <label>Port<input name="smtp_port" type="number" value="587"></label>
+        <label>Username<input name="username" required></label>
+        <label>Password<input name="password" type="password" required></label>
+        <label>IMAP host (optional)<input name="imap_host" placeholder="imap.example.com"></label>
+        <label>IMAP port<input name="imap_port" type="number" value="993"></label>
+        <label>Daily quota<input name="daily_quota" type="number" value="40" min="1"></label>
+        <label>Provider
+          <select name="provider">
+            <option value="smtp">smtp</option>
+            <option value="postmark">postmark</option>
+            <option value="ses">ses</option>
+          </select>
+        </label>
+        <label>ESP API key<input name="esp_api_key" type="password"></label>
+        <label>Domain<input name="domain" placeholder="example.com"></label>
+        <label>Domain daily limit<input name="domain_daily_limit" type="number" value="0"></label>
+        <label><span>Warmup</span><input type="checkbox" name="warmup" value="1" style="width:auto"></label>
+        <button type="submit">Add account</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <table>
+        <thead>
+          <tr><th>Email</th><th>Provider</th><th>SMTP / IMAP</th><th>Quota</th><th>Sent today</th></tr>
+        </thead>
+        <tbody>
+          {{range .Accounts}}
+          <tr>
+            <td>{{.Email}}</td>
+            <td><span class="badge">{{.Provider}}</span></td>
+            <td>{{.SMTPHost}}:{{.SMTPPort}}{{if .IMAPHost}} · {{.IMAPHost}}:{{.IMAPPort}}{{end}}</td>
+            <td>{{.DailyQuota}}</td>
+            <td>{{.SentToday}}</td>
+          </tr>
+          {{else}}
+          <tr><td colspan="5" class="muted">No accounts yet.</td></tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  {{template "foot" .}}
+</body>
+</html>

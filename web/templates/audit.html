@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audit · OutReachCRM</title>{{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css"></head>
+<body class="app-body">
+  {{template "nav" .}}
+<h1>Audit log</h1>
+<div class="panel"><table><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Entity</th><th>Meta</th></tr></thead>
+<tbody>{{range .Entries}}<tr><td class="muted">{{.CreatedAt.Format "2006-01-02 15:04"}}</td><td>{{.UserEmail}}</td><td>{{.Action}}</td><td>{{.Entity}} {{.EntityID}}</td><td class="muted">{{.Meta}}</td></tr>{{else}}<tr><td colspan="5" class="muted">No entries</td></tr>{{end}}</tbody></table></div>
+{{template "foot" .}}
+</body>
+</html>

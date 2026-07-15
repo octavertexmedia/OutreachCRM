@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Campaigns · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body class="app-body">
+  {{template "nav" .}}
+    <h1>4 · Campaigns & sequences</h1>
+    <p class="sub">Multi-step follow-ups with spintax, timezone windows, and A/B. Activate, enroll, watch the queue.</p>
+
+    {{if .Seeded}}
+    <div class="panel" style="border-color:rgba(15,143,123,0.45);background:rgba(15,143,123,0.08)">
+      <strong>Playbooks loaded.</strong>
+      Added {{.SeedCampaigns}} campaigns · {{.SeedTemplates}} templates · {{.SeedLeads}} ICP leads
+      {{if and (eq .SeedCampaigns 0) (eq .SeedTemplates 0) (eq .SeedLeads 0)}}
+      <span class="muted"> — already present (idempotent skip). Restart the server if you expected newer OVM packages.</span>
+      {{end}}
+    </div>
+    {{end}}
+
+    <div class="panel" style="border-color:rgba(217,119,6,0.35);background:rgba(217,119,6,0.06)">
+      <h2 style="margin:0 0 0.45rem;font-size:1.1rem;">Load company selling playbooks</h2>
+      <p class="muted" style="margin:0 0 0.85rem">Your DB shows <strong>{{.CampaignCount}}</strong> campaign(s). Playbooks are <em>not</em> auto-loaded — click below to insert OVM (Discovery / Starter / Rush / AI / e-com / growth) + RevNext (revenue, PMS, POS, booking, B2B, CMS) sequences, templates, and ICP leads.</p>
+      <div class="row-actions">
+        <form method="post" action="/leads/seed-playbooks" style="margin:0">
+          <button type="submit">Seed OVM + RevNext playbooks now</button>
+        </form>
+        <a class="topbar-link" href="/templates" style="border-color:var(--border)">Email templates</a>
+        <a class="topbar-link" href="/leads" style="border-color:var(--border)">Leads</a>
+      </div>
+      <p class="muted" style="margin:0.75rem 0 0;font-size:0.82rem">Requires server restarted after latest code (<code>make run</code>). If the button 404s, stop and restart.</p>
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-top:0;font-size:1.05rem;">New campaign</h2>
+      <form class="inline" method="post" action="/campaigns">
+        <label>Name<input name="name" required placeholder="Local clinics — Q1"></label>
+        <label>Daily send limit<input name="daily_send_limit" type="number" value="50" min="1"></label>
+        <label>Timezone<input name="timezone" value="UTC"></label>
+        <label>Window start (hour)<input name="send_window_start" type="number" value="9" min="0" max="23"></label>
+        <label>Window end (hour)<input name="send_window_end" type="number" value="17" min="0" max="23"></label>
+        <label><span>A/B</span><input type="checkbox" name="ab_enabled" value="1" style="width:auto"></label>
+        <button type="submit">Create (with 3-step sequence)</button>
+      </form>
+    </div>
+
+    {{range .Campaigns}}
+    <div class="panel"
+         data-inspect
+         hx-get="/panel/campaigns/{{.ID}}"
+         hx-target="#inspector-body"
+         hx-swap="innerHTML"
+         hx-trigger="click[!event.target.closest('button, a, form, input, select, textarea, label, table')]">
+      <h2 style="margin:0 0 0.35rem;font-size:1.1rem;">{{.Name}} <span class="badge {{badgeClass .Status}}">{{.Status}}</span>
+        {{if .DeliverabilityPaused}}<span class="badge bad">deliverability paused</span>{{end}}
+      </h2>
+      <p class="muted" style="margin-top:0;">Daily limit {{.DailySendLimit}} · steps {{len .Steps}} · <span class="muted">click for details</span></p>
+      <form method="post" action="/campaigns/{{.ID}}/status" class="row-actions" style="margin-bottom:0.75rem;">
+        <button name="status" value="active" type="submit">Activate</button>
+        <button class="secondary" name="status" value="paused" type="submit">Pause</button>
+        <button class="secondary" name="status" value="draft" type="submit">Draft</button>
+      </form>
+      <form method="post" action="/campaigns/{{.ID}}/deliverability" class="row-actions" style="margin-bottom:0.75rem;">
+        {{if .DeliverabilityPaused}}
+        <button name="paused" value="0" type="submit">Clear deliverability pause</button>
+        {{else}}
+        <button class="secondary" name="paused" value="1" type="submit">Deliverability pause</button>
+        {{end}}
+      </form>
+
+      <table>
+        <thead><tr><th>#</th><th>Delay</th><th>Subject</th><th>Body (spintax)</th></tr></thead>
+        <tbody>
+          {{range .Steps}}
+          <tr>
+            <td>{{.StepOrder}}</td>
+            <td>{{.DelayDays}}d</td>
+            <td>{{.SubjectTemplate}}</td>
+            <td><pre style="margin:0;white-space:pre-wrap;font:inherit;">{{.BodySpintax}}</pre></td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+
+      <form method="post" action="/campaigns/{{.ID}}/steps" style="margin-top:1rem;">
+        <h3 style="font-size:0.95rem;">Add step</h3>
+        <div class="inline">
+          <label>Delay days<input name="delay_days" type="number" value="2" min="0"></label>
+          <label>Subject<input name="subject_template" required></label>
+        </div>
+        <label style="margin-top:0.65rem;">Body spintax
+          <textarea name="body_spintax" required></textarea>
+        </label>
+        <div style="margin-top:0.65rem;"><button type="submit">Add step</button></div>
+      </form>
+
+      <form method="post" action="/campaigns/{{.ID}}/enroll" style="margin-top:1rem;">
+        <h3 style="font-size:0.95rem;">Enroll lead</h3>
+        <div class="inline">
+          <label>Lead
+            <select name="lead_id" required>
+              <option value="">Select…</option>
+              {{range $.Leads}}
+              <option value="{{.ID}}">{{.Name}} — {{.Email}}</option>
+              {{end}}
+            </select>
+          </label>
+          <button type="submit">Enroll & queue step 1</button>
+        </div>
+      </form>
+    </div>
+    {{else}}
+    <p class="muted">No campaigns yet.</p>
+    {{end}}
+  {{template "foot" .}}
+</body>
+</html>

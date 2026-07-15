@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Users · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="app-body">
+  {{template "nav" .}}
+    <h1>Users</h1>
+    <p class="sub">Admin-only. Create senders and manage access.</p>
+
+    <div class="panel">
+      <form class="inline" method="post" action="/users">
+        <label>Email<input type="email" name="email" required></label>
+        <label>Password<input type="password" name="password" required minlength="8"></label>
+        <label>Role
+          <select name="role">
+            <option value="sender">sender</option>
+            <option value="admin">admin</option>
+          </select>
+        </label>
+        <button type="submit">Create user</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <table>
+        <thead><tr><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {{range .Users}}
+          <tr>
+            <td>{{.Email}}</td>
+            <td><span class="badge {{badgeClass .Role}}">{{.Role}}</span></td>
+            <td>{{if .Active}}active{{else}}disabled{{end}}</td>
+            <td>
+              <form method="post" action="/users/{{.ID}}/active" style="display:inline">
+                {{if .Active}}
+                <button class="secondary" name="active" value="0" type="submit">Disable</button>
+                {{else}}
+                <button name="active" value="1" type="submit">Enable</button>
+                {{end}}
+              </form>
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  {{template "foot" .}}
+</body>
+</html>

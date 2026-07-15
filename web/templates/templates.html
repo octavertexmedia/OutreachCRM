@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Templates · OutReachCRM</title>{{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css"></head>
+<body class="app-body">
+  {{template "nav" .}}
+<h1>Email templates</h1>
+<div class="panel"><form method="post" action="/templates">
+<label>Name<input name="name" required></label>
+<label>Subject<input name="subject" required></label>
+<label>Body<textarea name="body" required></textarea></label>
+<button type="submit">Save</button>
+</form></div>
+<div class="panel">{{range .Templates}}
+<div style="margin-bottom:1rem;border-bottom:1px solid var(--border);padding-bottom:0.75rem">
+<strong>{{.Name}}</strong><div class="muted">{{.Subject}}</div><pre style="white-space:pre-wrap;font:inherit">{{.Body}}</pre>
+</div>{{else}}<p class="muted">No templates yet.</p>{{end}}</div>
+{{template "foot" .}}
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HITL · OutReachCRM</title>{{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body class="app-body">
+  {{template "nav" .}}
+<h1>5 · Reply management</h1>
+<p class="sub">Positive replies waiting for a human closer — suggest an AI response, then mark done.</p>
+<div class="panel"><table><thead><tr><th>From</th><th>Subject</th><th>Body</th><th>Actions</th></tr></thead>
+<tbody>{{range .Replies}}
+<tr>
+<td>{{.FromEmail}}<div class="muted">{{.LeadName}}</div><span class="badge positive">{{.Intent}}</span></td>
+<td>{{.Subject}}</td>
+<td><pre style="margin:0;white-space:pre-wrap;font:inherit">{{.Body}}</pre>
+<div id="suggest-{{.ID}}"></div></td>
+<td class="row-actions">
+<button class="secondary" hx-post="/hitl/{{.ID}}/suggest" hx-target="#suggest-{{.ID}}" hx-swap="innerHTML">Suggest reply</button>
+<form method="post" action="/hitl/{{.ID}}"><button name="status" value="done" type="submit">Mark done</button></form>
+</td>
+</tr>
+{{else}}<tr><td colspan="4" class="muted">Queue empty — positives land here from inbox/IMAP.</td></tr>{{end}}</tbody></table></div>
+{{template "foot" .}}
+</body>
+</html>

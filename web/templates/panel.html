@@ -1,0 +1,146 @@
+{{define "panel_lead.html"}}
+<div class="inspector-panel" data-kind="lead" data-id="{{.Lead.ID}}">
+  <div class="row-actions" style="margin-bottom:0.85rem">
+    <span class="badge {{badgeClass .Lead.EnrichmentStatus}}">{{.Lead.EnrichmentStatus}}</span>
+    {{if ge .Lead.PremiumScore 70}}<span class="badge premium">premium {{.Lead.PremiumScore}}</span>{{else if gt .Lead.PremiumScore 0}}<span class="badge">score {{.Lead.PremiumScore}}</span>{{end}}
+  </div>
+  <h3 style="margin:0 0 0.25rem;font-family:var(--font-display)">{{.Lead.Name}}</h3>
+  <p class="muted" style="margin:0 0 1rem">{{if .Lead.Company}}{{.Lead.Company}}{{if .Lead.Title}} · {{.Lead.Title}}{{end}}{{else}}Lead record{{end}}</p>
+
+  <dl class="inspector-kv">
+    <div><dt>Email</dt><dd>{{if .Lead.Email}}{{.Lead.Email}}{{else}}—{{end}}</dd></div>
+    <div><dt>Phone</dt><dd>{{if .Lead.Phone}}{{.Lead.Phone}}{{else}}—{{end}}</dd></div>
+    <div><dt>Website</dt><dd>{{if .Lead.Website}}<a href="{{.Lead.Website}}" target="_blank" rel="noopener">{{.Lead.Website}}</a>{{else}}—{{end}}</dd></div>
+    <div><dt>Source</dt><dd>{{.Lead.Source}}</dd></div>
+    <div><dt>Rating</dt><dd>★ {{printf "%.1f" .Lead.GoogleRating}}</dd></div>
+    <div><dt>Category</dt><dd>{{if .Lead.Category}}{{.Lead.Category}}{{else}}—{{end}}</dd></div>
+    {{if .Lead.EmailValidation}}
+    <div><dt>Email check</dt><dd>{{.Lead.EmailValidation}} {{if ge .Lead.EmailBounceProb 0}}(bounce {{printf "%.0f" .Lead.EmailBounceProb}}%){{end}}</dd></div>
+    {{end}}
+  </dl>
+
+  {{if .Lead.Notes}}
+  <div class="inspector-section">
+    <h3>Notes</h3>
+    <p style="margin:0;white-space:pre-wrap">{{.Lead.Notes}}</p>
+  </div>
+  {{end}}
+
+  {{with issues .Lead.IssuesJSON}}
+  {{if .}}
+  <div class="inspector-section">
+    <h3>Issues</h3>
+    <ul class="muted" style="margin:0;padding-left:1.1rem">
+      {{range .}}<li>{{.}}</li>{{end}}
+    </ul>
+  </div>
+  {{end}}
+  {{end}}
+
+  {{if .Lead.DraftSubject}}
+  <div class="inspector-section">
+    <h3>AI draft</h3>
+    <p style="margin:0 0 0.35rem"><strong>{{.Lead.DraftSubject}}</strong></p>
+    <pre style="margin:0;white-space:pre-wrap;font:inherit;color:var(--muted)">{{.Lead.DraftBody}}</pre>
+  </div>
+  {{end}}
+
+  <div class="inspector-section">
+    <h3>Actions</h3>
+    <div class="row-actions">
+      <button hx-post="/leads/{{.Lead.ID}}/enrich" hx-target="#lead-{{.Lead.ID}}" hx-swap="outerHTML">Enrich</button>
+      <button class="secondary" hx-post="/leads/{{.Lead.ID}}/generate-email" hx-target="#draft-{{.Lead.ID}}" hx-swap="innerHTML">Draft</button>
+      <button class="secondary" hx-post="/leads/{{.Lead.ID}}/validate-email" hx-target="#val-{{.Lead.ID}}" hx-swap="innerHTML">Validate</button>
+      <a class="topbar-link" href="/leads" style="border-color:var(--border)">Open list</a>
+    </div>
+    <div id="val-{{.Lead.ID}}" style="margin-top:0.5rem"></div>
+    <div id="draft-{{.Lead.ID}}" style="margin-top:0.5rem"></div>
+  </div>
+
+  <div class="inspector-section">
+    <h3>Recipient health</h3>
+    <dl class="inspector-kv">
+      <div><dt>Sent</dt><dd>{{.History.Sent}}</dd></div>
+      <div><dt>Opened / replied</dt><dd>{{.History.Opened}} / {{.History.Replied}}</dd></div>
+      <div><dt>Bounces</dt><dd>{{.History.HardBounces}} hard · {{.History.SoftBounces}} soft</dd></div>
+      <div><dt>Complaints</dt><dd>{{.History.Complaints}}</dd></div>
+    </dl>
+  </div>
+</div>
+{{end}}
+
+{{define "panel_campaign.html"}}
+<div class="inspector-panel">
+  <div class="row-actions" style="margin-bottom:0.85rem">
+    <span class="badge {{badgeClass .Campaign.Status}}">{{.Campaign.Status}}</span>
+    {{if .Campaign.DeliverabilityPaused}}<span class="badge bad">deliverability paused</span>{{end}}
+  </div>
+  <h3 style="margin:0 0 0.25rem;font-family:var(--font-display)">{{.Campaign.Name}}</h3>
+  <p class="muted" style="margin:0 0 1rem">Campaign · {{len .Steps}} steps</p>
+  <dl class="inspector-kv">
+    <div><dt>Daily limit</dt><dd>{{.Campaign.DailySendLimit}}</dd></div>
+    <div><dt>Timezone</dt><dd>{{.Campaign.Timezone}}</dd></div>
+    <div><dt>Window</dt><dd>{{.Campaign.SendWindowStart}}:00 – {{.Campaign.SendWindowEnd}}:00</dd></div>
+    <div><dt>A/B</dt><dd>{{if .Campaign.ABEnabled}}enabled{{else}}off{{end}}</dd></div>
+  </dl>
+  <div class="inspector-section">
+    <h3>Sequence</h3>
+    <ol style="margin:0;padding-left:1.2rem">
+      {{range .Steps}}
+      <li style="margin-bottom:0.45rem">
+        <strong>Day +{{.DelayDays}}</strong>
+        <div class="muted">{{.SubjectTemplate}}</div>
+      </li>
+      {{else}}
+      <li class="muted">No steps</li>
+      {{end}}
+    </ol>
+  </div>
+  <div class="inspector-section">
+    <form method="post" action="/campaigns/{{.Campaign.ID}}/status" class="row-actions">
+      <button name="status" value="active" type="submit">Activate</button>
+      <button class="secondary" name="status" value="paused" type="submit">Pause</button>
+    </form>
+  </div>
+</div>
+{{end}}
+
+{{define "panel_queue.html"}}
+<div class="inspector-panel">
+  <div class="row-actions" style="margin-bottom:0.85rem">
+    <span class="badge {{badgeClass .Msg.Status}}">{{.Msg.Status}}</span>
+    <span class="badge">step {{.Msg.StepOrder}}</span>
+  </div>
+  <h3 style="margin:0 0 0.25rem;font-family:var(--font-display)">Outbound #{{.Msg.ID}}</h3>
+  <p class="muted" style="margin:0 0 1rem">{{.Msg.ToEmail}}</p>
+  <dl class="inspector-kv">
+    <div><dt>Campaign</dt><dd>#{{.Msg.CampaignID}}</dd></div>
+    <div><dt>Lead</dt><dd>#{{.Msg.LeadID}}</dd></div>
+    <div><dt>Next attempt</dt><dd>{{.Msg.NextAttemptAt.Format "2006-01-02 15:04"}}</dd></div>
+    <div><dt>Attempts</dt><dd>{{.Msg.Attempts}}</dd></div>
+    {{if .Msg.LastError}}
+    <div><dt>Last error</dt><dd class="error">{{.Msg.LastError}}</dd></div>
+    {{end}}
+  </dl>
+  {{if .Msg.Subject}}
+  <div class="inspector-section">
+    <h3>Subject</h3>
+    <p style="margin:0">{{.Msg.Subject}}</p>
+  </div>
+  {{end}}
+  {{if .Msg.Body}}
+  <div class="inspector-section">
+    <h3>Body</h3>
+    <pre style="margin:0;white-space:pre-wrap;font:inherit;color:var(--muted)">{{.Msg.Body}}</pre>
+  </div>
+  {{end}}
+  {{if .Lead.ID}}
+  <div class="inspector-section">
+    <button class="secondary"
+      hx-get="/panel/leads/{{.Lead.ID}}"
+      hx-target="#inspector-body"
+      hx-swap="innerHTML">View lead</button>
+  </div>
+  {{end}}
+</div>
+{{end}}

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Leads · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body class="app-body">
+  {{template "nav" .}}
+    <h1>1 · Sourcing + 2 · Enrichment + 3 · Writing</h1>
+    <p class="sub">Import prospects, enrich into premium packages, then draft unique cold emails.</p>
+
+    <div class="panel row-actions">
+      <form method="post" action="/leads/seed-playbooks" style="margin:0">
+        <button type="submit">Seed OVM + RevNext playbooks</button>
+      </form>
+      <form method="post" action="/leads/seed" style="margin:0"><button type="submit" class="secondary">Seed demo leads</button></form>
+      <form method="post" action="/leads/enrich-all" style="margin:0"><button type="submit" class="secondary">Bulk enrich pending</button></form>
+    </div>
+    <p class="muted" style="margin-top:-0.5rem;margin-bottom:1rem;">Playbooks: OVM fixed-price MVP (Discovery $2k / Starter $3,999 / Rush $5,499) + AI/e-com/growth ICPs from build-mvp &amp; services · RevNext hotel suite — campaigns IST 9–18.</p>
+
+    <div class="panel">
+      <h2 style="margin-top:0;font-size:1.05rem;">Add lead</h2>
+      <form class="inline" method="post" action="/leads">
+        <label>Name<input name="name" required></label>
+        <label>Company<input name="company"></label>
+        <label>Title<input name="title"></label>
+        <label>Website<input name="website" placeholder="https://"></label>
+        <label>Email<input name="email" type="email"></label>
+        <label>Phone<input name="phone"></label>
+        <label>Google rating<input name="google_rating" type="number" step="0.1" min="0" max="5"></label>
+        <label>Notes<input name="notes"></label>
+        <label>Consent source<input name="consent_source" placeholder="web form"></label>
+        <label><span>Consent</span><input type="checkbox" name="consent" value="1" style="width:auto"></label>
+        <button type="submit">Add</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-top:0;font-size:1.05rem;">Bulk CSV import</h2>
+      <form method="post" action="/leads/import" enctype="multipart/form-data">
+        <label>CSV (name,email,website,phone)<input type="file" name="file" accept=".csv,text/csv" required></label>
+        <button type="submit">Import</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <table>
+        <thead>
+          <tr>
+            <th>Lead</th>
+            <th>Web / rating</th>
+            <th>Category & issues</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Leads}}
+            {{template "lead_row.html" .}}
+          {{else}}
+            <tr><td colspan="5" class="muted">No leads yet — seed demos or import a CSV.</td></tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  {{template "foot" .}}
+</body>
+</html>

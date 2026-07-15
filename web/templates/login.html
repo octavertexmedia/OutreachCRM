@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-box">
+      <div class="brand-mark" style="margin-bottom:1.1rem">
+        <span class="brand-glyph" aria-hidden="true" style="position:relative;display:inline-block"></span>
+        <span class="brand-text">
+          <span class="brand-name" style="color:var(--text)">OutReach</span>
+          <span class="brand-sub" style="color:var(--muted)">CRM</span>
+        </span>
+      </div>
+      <h1>Welcome back</h1>
+      <p class="sub">Sign in to your outreach console.</p>
+      <form method="post" action="/login">
+        <label>Email
+          <input type="email" name="email" autofocus required autocomplete="username">
+        </label>
+        <label style="margin-top:0.75rem;">Password
+          <input type="password" name="password" required autocomplete="current-password">
+        </label>
+        <div style="margin-top:1.15rem">
+          <button type="submit" class="btn-block">Sign in</button>
+        </div>
+      </form>
+      {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inbox · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body class="app-body">
+  {{template "nav" .}}
+    <h1>5 · Inbox triage</h1>
+    <p class="sub">Paste a reply or sync via IMAP — AI classifies intent; positives go to HITL.</p>
+
+    <div class="panel">
+      <form hx-post="/inbox/classify" hx-target="#replies-body" hx-swap="afterbegin">
+        <div class="inline">
+          <label>From email<input name="from_email" type="email"></label>
+          <label>Lead name<input name="lead_name"></label>
+          <label>Subject<input name="subject"></label>
+        </div>
+        <label style="margin-top:0.65rem;">Reply body
+          <textarea name="body" required placeholder="Paste the prospect's reply…"></textarea>
+        </label>
+        <div style="margin-top:0.65rem;"><button type="submit">Classify & save</button></div>
+      </form>
+    </div>
+
+    <div class="panel">
+      <table>
+        <thead>
+          <tr><th>Intent / who</th><th>Subject</th><th>Body</th><th>When</th></tr>
+        </thead>
+        <tbody id="replies-body">
+          {{range .Replies}}
+            {{template "reply_row.html" .}}
+          {{else}}
+            <tr id="empty-inbox"><td colspan="4" class="muted">No replies classified yet.</td></tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  {{template "foot" .}}
+</body>
+</html>

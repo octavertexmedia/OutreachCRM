@@ -1,0 +1,151 @@
+{{define "fonts"}}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn-uicons.flaticon.com/2.6.0/uicons-regular-rounded/css/uicons-regular-rounded.css">
+{{end}}
+
+{{define "nav"}}
+<aside class="sidebar" id="sidebar" aria-label="Primary navigation">
+  <div class="sidebar-brand">
+    <a href="/" class="brand-mark" title="OutReachCRM">
+      <span class="brand-glyph" aria-hidden="true"></span>
+      <span class="brand-text">
+        <span class="brand-name">OutReach</span>
+        <span class="brand-sub">CRM</span>
+      </span>
+    </a>
+    <button type="button" class="collapse-btn" id="collapse-btn" title="Collapse sidebar" aria-label="Collapse sidebar">
+      <i class="fi fi-rr-angle-double-small-left"></i>
+    </button>
+  </div>
+
+  <nav class="sidebar-nav">
+    <p class="nav-label">Pipeline</p>
+    <a href="/" class="nav-item {{if eq .Nav "dashboard"}}active{{end}}" title="Dashboard">
+      <i class="fi fi-rr-apps nav-ico"></i><span class="nav-text">Dashboard</span>
+    </a>
+    <a href="/leads" class="nav-item {{if eq .Nav "leads"}}active{{end}}" title="Leads">
+      <i class="fi fi-rr-users nav-ico"></i><span class="nav-text">Leads</span>
+    </a>
+    <a href="/campaigns" class="nav-item {{if eq .Nav "campaigns"}}active{{end}}" title="Campaigns">
+      <i class="fi fi-rr-paper-plane nav-ico"></i><span class="nav-text">Campaigns</span>
+    </a>
+    <a href="/queue" class="nav-item {{if eq .Nav "queue"}}active{{end}}" title="Queue">
+      <i class="fi fi-rr-time-past nav-ico"></i><span class="nav-text">Queue</span>
+    </a>
+
+    <p class="nav-label">Inbox</p>
+    <a href="/inbox" class="nav-item {{if eq .Nav "inbox"}}active{{end}}" title="Inbox">
+      <i class="fi fi-rr-envelope nav-ico"></i><span class="nav-text">Inbox</span>
+    </a>
+    <a href="/hitl" class="nav-item {{if eq .Nav "hitl"}}active{{end}}" title="HITL">
+      <i class="fi fi-rr-hand-holding-heart nav-ico"></i><span class="nav-text">HITL</span>
+    </a>
+
+    <p class="nav-label">Performance</p>
+    <a href="/analytics" class="nav-item {{if eq .Nav "analytics"}}active{{end}}" title="Analytics">
+      <i class="fi fi-rr-chart-histogram nav-ico"></i><span class="nav-text">Analytics</span>
+    </a>
+    <a href="/deliverability" class="nav-item {{if eq .Nav "deliverability"}}active{{end}}" title="Deliverability">
+      <i class="fi fi-rr-shield-check nav-ico"></i><span class="nav-text">Deliverability</span>
+    </a>
+    <a href="/domains" class="nav-item {{if eq .Nav "domains"}}active{{end}}" title="DNS">
+      <i class="fi fi-rr-globe nav-ico"></i><span class="nav-text">DNS</span>
+    </a>
+
+    <p class="nav-label">Workspace</p>
+    <a href="/accounts" class="nav-item {{if eq .Nav "accounts"}}active{{end}}" title="Accounts">
+      <i class="fi fi-rr-at nav-ico"></i><span class="nav-text">Accounts</span>
+    </a>
+    <a href="/templates" class="nav-item {{if eq .Nav "templates"}}active{{end}}" title="Templates">
+      <i class="fi fi-rr-file-invoice nav-ico"></i><span class="nav-text">Templates</span>
+    </a>
+    <a href="/security" class="nav-item {{if eq .Nav "security"}}active{{end}}" title="Security">
+      <i class="fi fi-rr-lock nav-ico"></i><span class="nav-text">Security</span>
+    </a>
+
+    {{if and .User .User.IsAdmin}}
+    <p class="nav-label">Admin</p>
+    <a href="/users" class="nav-item {{if eq .Nav "users"}}active{{end}}" title="Users">
+      <i class="fi fi-rr-user nav-ico"></i><span class="nav-text">Users</span>
+    </a>
+    <a href="/workspaces" class="nav-item {{if eq .Nav "workspaces"}}active{{end}}" title="Workspaces">
+      <i class="fi fi-rr-briefcase nav-ico"></i><span class="nav-text">Workspaces</span>
+    </a>
+    <a href="/audit" class="nav-item {{if eq .Nav "audit"}}active{{end}}" title="Audit">
+      <i class="fi fi-rr-clipboard-list-check nav-ico"></i><span class="nav-text">Audit</span>
+    </a>
+    {{end}}
+  </nav>
+
+  <div class="sidebar-foot">
+    {{if .User}}
+    <div class="user-chip" title="{{.User.Email}}">
+      <div class="user-avatar" aria-hidden="true"><i class="fi fi-rr-user"></i></div>
+      <div class="user-meta">
+        <div class="user-email">{{.User.Email}}</div>
+        <div class="user-ws">Workspace {{.User.WorkspaceID}}</div>
+      </div>
+    </div>
+    {{end}}
+    <form method="post" action="/logout" class="logout-form">
+      <button type="submit" class="secondary btn-block" title="Sign out">
+        <i class="fi fi-rr-exit"></i><span class="nav-text"> Sign out</span>
+      </button>
+    </form>
+    <p class="icon-credit"><a href="https://www.flaticon.com/uicons" target="_blank" rel="noopener">UIcons by Flaticon</a></p>
+  </div>
+</aside>
+
+<div class="sidebar-backdrop" id="sidebar-backdrop" hidden></div>
+
+<main class="main">
+  <header class="topbar">
+    <button type="button" class="menu-btn secondary" id="menu-btn" aria-label="Open menu"><i class="fi fi-rr-menu-burger"></i></button>
+    <button type="button" class="collapse-btn top-collapse secondary" id="collapse-btn-top" title="Toggle sidebar" aria-label="Toggle sidebar">
+      <i class="fi fi-rr-angle-double-small-left"></i>
+    </button>
+    <div class="topbar-title">
+      <span class="eyebrow">Outreach console</span>
+    </div>
+    <div class="topbar-actions">
+      <button type="button" class="topbar-link" id="inspector-toggle" title="Toggle detail pane">
+        <i class="fi fi-rr-eye"></i> Details
+      </button>
+      <a class="topbar-link" href="/deliverability"><i class="fi fi-rr-shield-check"></i> Deliverability</a>
+      <a class="topbar-link" href="/queue"><i class="fi fi-rr-time-past"></i> Queue</a>
+    </div>
+  </header>
+  <div class="workspace">
+    <div class="page">
+{{end}}
+
+{{define "foot"}}
+    </div>
+    <aside class="inspector" id="inspector" aria-label="Record details">
+      <div class="inspector-head">
+        <div>
+          <span class="eyebrow">Inspector</span>
+          <h2 class="inspector-title">Details</h2>
+        </div>
+        <button type="button" class="secondary inspector-close" id="inspector-close" aria-label="Close details" title="Close">
+          <i class="fi fi-rr-cross-small"></i>
+        </button>
+      </div>
+      <div class="inspector-body" id="inspector-body">
+        {{template "inspector_empty" .}}
+      </div>
+    </aside>
+  </div>
+</main>
+<script src="/static/appshell.js"></script>
+{{end}}
+
+{{define "inspector_empty"}}
+<div class="inspector-empty">
+  <div class="inspector-empty-ico"><i class="fi fi-rr-search-alt"></i></div>
+  <h3>Select a record</h3>
+  <p class="muted">Click a lead, campaign, or queue item to inspect details here — like HubSpot / Salesforce side panels.</p>
+</div>
+{{end}}

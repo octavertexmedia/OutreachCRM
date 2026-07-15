@@ -1,0 +1,75 @@
+{{define "deliverability.html"}}
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deliverability · OutReachCRM</title>{{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body class="app-body">
+  {{template "nav" .}}
+<h1>Email Deliverability Engine</h1>
+<p class="sub">Validation → risk → reputation → send / delay / suppress — between CRM and SMTP.</p>
+
+<div class="grid">
+  <div class="stat"><div class="n">{{printf "%.0f" .Dash.DomainReputation}}</div><div class="l">Domain reputation</div></div>
+  <div class="stat"><div class="n">{{printf "%.0f" .Dash.IPReputation}}</div><div class="l">IP reputation</div></div>
+  <div class="stat"><div class="n">{{printf "%.2f" .Dash.BounceRate}}%</div><div class="l">Bounce rate (7d)</div></div>
+  <div class="stat"><div class="n">{{printf "%.2f" .Dash.SpamRate}}%</div><div class="l">Complaint rate (7d)</div></div>
+  <div class="stat"><div class="n">{{printf "%.1f" .Dash.DeliveryRate}}%</div><div class="l">Delivery rate</div></div>
+  <div class="stat"><div class="n">{{printf "%.1f" .Dash.InboxRate}}%</div><div class="l">Inbox proxy</div></div>
+  <div class="stat"><div class="n">{{.Dash.Sent7d}}</div><div class="l">Sent (7d)</div></div>
+  <div class="stat"><div class="n">{{.Dash.Suppressed}}</div><div class="l">Suppressions</div></div>
+  <div class="stat"><div class="n">{{.Dash.DecisionsToday}}</div><div class="l">Decisions today</div></div>
+  <div class="stat"><div class="n">{{.Dash.DelayedToday}}</div><div class="l">Delayed today</div></div>
+  <div class="stat"><div class="n">{{.Dash.SuppressedToday}}</div><div class="l">Suppressed today</div></div>
+  <div class="stat"><div class="n">{{.Dash.PausedCampaigns}}</div><div class="l">Paused campaigns</div></div>
+</div>
+
+<div class="panel" style="margin-top:1.25rem">
+  <h2 style="margin-top:0;font-size:1.05rem;">Validate an address</h2>
+  <form class="inline" hx-post="/deliverability/validate" hx-target="#validate-out" hx-swap="innerHTML">
+    <label>Email<input name="email" type="email" required placeholder="prospect@company.com"></label>
+    <button type="submit">Run engine</button>
+  </form>
+  <p class="muted" style="margin-top:0.5rem">SMTP verify: {{if .SMTPVerify}}on{{else}}off{{end}} · Require auth: {{if .RequireAuth}}on{{else}}off{{end}}</p>
+  <div id="validate-out"></div>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0;font-size:1.05rem;">Blacklist check (DNSBL)</h2>
+  <form class="inline" method="post" action="/deliverability/blacklist">
+    <label>Sending host / IP<input name="host" required placeholder="mail.example.com"></label>
+    <button type="submit">Check</button>
+  </form>
+  {{if .Blacklists}}
+  <table style="margin-top:1rem"><thead><tr><th>Key</th><th>Listed</th><th>Zones</th><th>Checked</th></tr></thead>
+  <tbody>
+  {{range .Blacklists}}
+  <tr><td>{{.Key}}</td><td>{{if .Listed}}<span class="badge bad">yes</span>{{else}}<span class="badge done">no</span>{{end}}</td><td class="muted">{{.Zones}}</td><td class="muted">{{.CheckedAt.Format "2006-01-02 15:04"}}</td></tr>
+  {{end}}
+  </tbody></table>
+  {{end}}
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0;font-size:1.05rem;">Recent send decisions</h2>
+  <table><thead><tr><th>When</th><th>Email</th><th>Action</th><th>Bounce</th><th>Trap</th><th>ISP</th><th>Reasons</th></tr></thead>
+  <tbody>
+  {{range .Decisions}}
+  <tr>
+    <td class="muted">{{.CreatedAt.Format "15:04:05"}}</td>
+    <td>{{.Email}}</td>
+    <td><span class="badge {{if eq .Action "send"}}done{{else if eq .Action "delay"}}warn{{else}}bad{{end}}">{{.Action}}</span></td>
+    <td>{{printf "%.0f" .BounceProb}}%</td>
+    <td>{{printf "%.0f" .SpamTrapRisk}}</td>
+    <td>{{.ISP}}</td>
+    <td class="muted" style="max-width:28rem;white-space:normal">{{.Reasons}}</td>
+  </tr>
+  {{else}}
+  <tr><td colspan="7" class="muted">No decisions yet — send a campaign or validate above.</td></tr>
+  {{end}}
+  </tbody></table>
+</div>
+{{template "foot" .}}
+</body></html>
+{{end}}

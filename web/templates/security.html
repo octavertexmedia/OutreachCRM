@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Security · OutReachCRM</title>{{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css"></head>
+<body class="app-body">
+  {{template "nav" .}}
+<h1>Security</h1>
+<p class="sub">TOTP two-factor authentication for your account.</p>
+<div class="panel">
+{{if .TOTPEnabled}}
+<p>2FA is <span class="badge done">enabled</span>.</p>
+<form method="post" action="/security/totp/disable"><button class="secondary" type="submit">Disable 2FA</button></form>
+{{else if .Secret}}
+<p>Scan / enter this secret in your authenticator, then confirm with a code.</p>
+<pre>{{.URI}}</pre>
+<p class="muted">Secret: {{.Secret}}</p>
+<form method="post" action="/security/totp/enable">
+<input type="hidden" name="confirm_secret" value="{{.Secret}}">
+<label>Code<input name="code" required></label>
+<button type="submit">Confirm & enable</button>
+</form>
+{{else}}
+<form method="post" action="/security/totp/enable"><button type="submit">Set up 2FA</button></form>
+{{end}}
+</div>
+<div class="panel">
+<a href="/privacy/export">Download GDPR JSON export</a>
+</div>
+{{template "foot" .}}
+</body>
+</html>

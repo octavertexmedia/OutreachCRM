@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DNS · OutReachCRM</title>{{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css"></head>
+<body class="app-body">
+  {{template "nav" .}}
+<h1>Domain deliverability</h1>
+<p class="sub">SPF / DKIM / DMARC checks via DNS TXT lookups.</p>
+<div class="panel"><form class="inline" method="post" action="/domains/check">
+<label>Domain<input name="domain" required placeholder="example.com"></label>
+<button type="submit">Check</button>
+</form></div>
+<div class="panel"><table><thead><tr><th>Domain</th><th>SPF</th><th>DKIM</th><th>DMARC</th><th>Detail</th></tr></thead>
+<tbody>{{range .Checks}}<tr>
+<td>{{.Domain}}</td>
+<td>{{if .SPF}}✓{{else}}✗{{end}}</td>
+<td>{{if .DKIM}}✓{{else}}✗{{end}}</td>
+<td>{{if .DMARC}}✓{{else}}✗{{end}}</td>
+<td class="muted">{{.Detail}}</td>
+</tr>{{else}}<tr><td colspan="5" class="muted">No checks yet</td></tr>{{end}}</tbody></table></div>
+{{template "foot" .}}
+</body>
+</html>

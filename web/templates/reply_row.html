@@ -1,0 +1,10 @@
+<tr id="reply-{{.ID}}" {{if eq .Intent "positive"}}style="background:rgba(62,207,142,0.08)"{{end}}>
+  <td>
+    <span class="badge {{badgeClass .Intent}}">{{.Intent}}</span>
+    <div><strong>{{if .LeadName}}{{.LeadName}}{{else}}—{{end}}</strong></div>
+    <div class="muted">{{.FromEmail}}</div>
+  </td>
+  <td>{{.Subject}}</td>
+  <td><pre style="margin:0;white-space:pre-wrap;font:inherit;">{{.Body}}</pre></td>
+  <td class="muted">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+</tr>

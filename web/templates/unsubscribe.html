@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Unsubscribe · OutReachCRM</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-box">
+      {{if .Done}}
+      <h1>You're unsubscribed</h1>
+      <p class="sub">You won't receive further emails from this campaign.</p>
+      {{else}}
+      <h1>Unsubscribe</h1>
+      <p class="sub">Confirm to stop outreach emails for this campaign.</p>
+      <form method="post" action="/u/{{.Token}}">
+        <button type="submit">Confirm unsubscribe</button>
+      </form>
+      {{end}}
+    </div>
+  </div>
+</body>
+</html>
