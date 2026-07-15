@@ -2,6 +2,8 @@
 
 Source of truth: **https://secrets.revnext.in/** (OpenBao on the shared Contabo VPS, stack `~/revnext-secrets`).
 
+**Multi-app (all products):** see [OPENBAO-MULTI-APP.md](./OPENBAO-MULTI-APP.md) and seed with [`openbao-seed-all.sh`](./openbao-seed-all.sh).
+
 Product deploy never starts, stops, or wipes OpenBao volumes.
 
 ## KV layout (KV v2, mount `secret`)
