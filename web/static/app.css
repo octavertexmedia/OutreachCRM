@@ -187,6 +187,15 @@ a:hover { text-decoration: underline; text-underline-offset: 3px; }
   text-decoration: none !important;
 }
 
+.brand-logo {
+  width: 2.15rem;
+  height: 2.15rem;
+  object-fit: contain;
+  border-radius: 0.55rem;
+  background: #0a0a0a;
+  flex-shrink: 0;
+}
+
 .brand-glyph {
   width: 2.15rem;
   height: 2.15rem;

@@ -111,17 +111,23 @@ func ApplySecrets() (Status, error) {
 func collectSecrets(client *Client) (map[string]string, error) {
 	path := BaseSecretPath()
 	merged := map[string]string{}
+	var firstErr error
 
 	if data, err := client.ReadSecret(path); err == nil {
 		for k, v := range data {
 			merged[k] = v
 		}
+	} else {
+		firstErr = err
 	}
 
 	for _, suffix := range nestedSuffixes {
 		nested := path + "/" + suffix
 		data, err := client.ReadSecret(nested)
 		if err != nil {
+			if firstErr == nil {
+				firstErr = err
+			}
 			continue
 		}
 		for k, v := range data {
@@ -130,6 +136,9 @@ func collectSecrets(client *Client) (map[string]string, error) {
 	}
 
 	if len(merged) == 0 {
+		if firstErr != nil {
+			return nil, fmt.Errorf("no secrets found at %s: %w", path, firstErr)
+		}
 		return nil, fmt.Errorf("no secrets found at %s (or nested children)", path)
 	}
 	return merged, nil

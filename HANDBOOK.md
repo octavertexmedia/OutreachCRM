@@ -96,6 +96,7 @@ Dashboard shows the live funnel for steps 1–6.
 
 ## 8. Changelog
 
+- 2026-07-16 — Public landing at `/` (guests) + VertexCRM favicon/logo branding shared with AgencyCRM; signed-in users still get the dashboard.
 - 2026-07-16 — Contabo deploy for `outreach.vertexcrm.in` (Docker/nginx `:8003`) + OpenBao AppRole secret overlay (`secrets.revnext.in`, path `vertexcrm/outreach/production`).
 - 2026-07-16 — Company playbooks seed: OctaVertex Media + RevNext (PMS/POS/booking/B2B/CMS/revenue) templates, sequences, ICP leads via `POST /leads/seed-playbooks`.
 - 2026-07-16 — Email Deliverability Engine: validation, bounce/trap/engagement scoring, content/ISP/warmup, auto-suppress, complaint pause, `/deliverability` UI, pre-send gate.

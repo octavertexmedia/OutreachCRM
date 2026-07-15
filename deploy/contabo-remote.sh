@@ -117,7 +117,9 @@ if [ ! -f "$DEPLOY_DIR/.env" ]; then
     echo "# OpenBao — secrets.revnext.in / ~/revnext-secrets (set AppRole after bao policy create)"
     echo "OPENBAO_ENABLED=true"
     echo "OPENBAO_REQUIRED=true"
-    echo "OPENBAO_ADDR=http://172.17.0.1:8200"
+    # Prefer public HTTPS — works on CMS VPS (84.247…) and shared Contabo.
+    # Same-host docker alias http://openbao:8200 can be set after linking.
+    echo "OPENBAO_ADDR=https://secrets.revnext.in"
     echo "OPENBAO_MOUNT_POINT=secret"
     echo "OPENBAO_SECRET_PATH=vertexcrm/outreach"
     echo "OPENBAO_ENVIRONMENT=production"

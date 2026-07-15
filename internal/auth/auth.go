@@ -120,8 +120,12 @@ func (m *Manager) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 		if strings.HasPrefix(path, "/static/") ||
+			path == "/" ||
 			path == "/login" || path == "/login/totp" ||
 			path == "/healthz" || path == "/readyz" || path == "/metrics" ||
+			path == "/favicon.ico" || path == "/favicon.svg" || path == "/favicon-96x96.png" ||
+			path == "/apple-touch-icon.png" || path == "/site.webmanifest" ||
+			path == "/web-app-manifest-192x192.png" || path == "/web-app-manifest-512x512.png" ||
 			strings.HasPrefix(path, "/u/") ||
 			strings.HasPrefix(path, "/webhooks/") {
 			next.ServeHTTP(w, r)

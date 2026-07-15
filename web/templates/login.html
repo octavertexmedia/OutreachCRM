@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Login · OutReachCRM</title>
+  <title>Sign in · OutReachCRM</title>
   {{template "fonts" .}}
   <link rel="stylesheet" href="/static/app.css">
 </head>
@@ -11,14 +11,14 @@
   <div class="login-wrap">
     <div class="login-box">
       <div class="brand-mark" style="margin-bottom:1.1rem">
-        <span class="brand-glyph" aria-hidden="true" style="position:relative;display:inline-block"></span>
+        <img class="brand-logo" src="/static/vertexcrm_logo.png" width="36" height="36" alt="VertexCRM">
         <span class="brand-text">
           <span class="brand-name" style="color:var(--text)">OutReach</span>
           <span class="brand-sub" style="color:var(--muted)">CRM</span>
         </span>
       </div>
       <h1>Welcome back</h1>
-      <p class="sub">Sign in to your outreach console.</p>
+      <p class="sub">Sign in to your VertexCRM outreach console.</p>
       <form method="post" action="/login">
         <label>Email
           <input type="email" name="email" autofocus required autocomplete="username">
@@ -31,6 +31,7 @@
         </div>
       </form>
       {{if .Error}}<p class="error">{{.Error}}</p>{{end}}
+      <p class="sub" style="margin-top:1.25rem;margin-bottom:0"><a href="/" style="color:var(--muted)">← Back to OutReach</a></p>
     </div>
   </div>
 </body>

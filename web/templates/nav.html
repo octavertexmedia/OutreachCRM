@@ -1,4 +1,5 @@
 {{define "fonts"}}
+{{template "favicon_head" .}}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -8,8 +9,8 @@
 {{define "nav"}}
 <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
   <div class="sidebar-brand">
-    <a href="/" class="brand-mark" title="OutReachCRM">
-      <span class="brand-glyph" aria-hidden="true"></span>
+    <a href="/" class="brand-mark" title="OutReachCRM by VertexCRM">
+      <img class="brand-logo" src="/static/vertexcrm_logo.png" width="32" height="32" alt="VertexCRM">
       <span class="brand-text">
         <span class="brand-name">OutReach</span>
         <span class="brand-sub">CRM</span>

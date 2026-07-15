@@ -82,6 +82,7 @@ func New(st *store.Store, a *auth.Manager, box *crypto.Box, oa *oauth.Managers, 
 func (s *Server) Routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.FS(s.Static))))
+	s.mountBrandAssets(mux)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -95,7 +96,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /login", s.loginPost)
 	mux.HandleFunc("POST /logout", s.logout)
 
-	mux.HandleFunc("GET /{$}", s.dashboard)
+	mux.HandleFunc("GET /{$}", s.home)
 	mux.HandleFunc("GET /leads", s.leadsGet)
 	mux.HandleFunc("POST /leads", s.leadsPost)
 	mux.HandleFunc("POST /leads/seed", s.leadsSeed)
@@ -215,11 +216,46 @@ func (s *Server) loginPost(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	s.Auth.ClearSession(w)
-	http.Redirect(w, r, "/login", http.StatusSeeOther)
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+func (s *Server) mountBrandAssets(mux *http.ServeMux) {
+	serve := func(name, contentType string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			b, err := fs.ReadFile(s.Static, name)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			if contentType != "" {
+				w.Header().Set("Content-Type", contentType)
+			}
+			w.Header().Set("Cache-Control", "public, max-age=86400")
+			_, _ = w.Write(b)
+		}
+	}
+	mux.HandleFunc("GET /favicon.ico", serve("favicon.ico", "image/x-icon"))
+	mux.HandleFunc("GET /favicon.svg", serve("favicon.svg", "image/svg+xml"))
+	mux.HandleFunc("GET /favicon-96x96.png", serve("favicon-96x96.png", "image/png"))
+	mux.HandleFunc("GET /apple-touch-icon.png", serve("apple-touch-icon.png", "image/png"))
+	mux.HandleFunc("GET /site.webmanifest", serve("site.webmanifest", "application/manifest+json"))
+	mux.HandleFunc("GET /web-app-manifest-192x192.png", serve("web-app-manifest-192x192.png", "image/png"))
+	mux.HandleFunc("GET /web-app-manifest-512x512.png", serve("web-app-manifest-512x512.png", "image/png"))
+}
+
+func (s *Server) home(w http.ResponseWriter, r *http.Request) {
+	if u, ok := s.Auth.UserFromRequest(r); ok {
+		s.dashboardFor(w, r, u)
+		return
+	}
+	s.render(w, "landing.html", map[string]any{})
 }
 
 func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
-	u := s.current(r)
+	s.dashboardFor(w, r, s.current(r))
+}
+
+func (s *Server) dashboardFor(w http.ResponseWriter, r *http.Request, u models.SessionUser) {
 	st, err := s.Store.Stats(u.IsAdmin(), u.ID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)

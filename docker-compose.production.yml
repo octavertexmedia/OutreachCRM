@@ -15,7 +15,7 @@ services:
       DATA_DIR: /data
       # Host-published OpenBao from ~/revnext-secrets (override in .env).
       # Prefer docker network alias openbao when linked — set OPENBAO_ADDR in .env.
-      OPENBAO_ADDR: ${OPENBAO_ADDR:-http://172.17.0.1:8200}
+      OPENBAO_ADDR: ${OPENBAO_ADDR:-https://secrets.revnext.in}
     volumes:
       - outreach_data:/data
     restart: unless-stopped

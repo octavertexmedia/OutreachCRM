@@ -1,0 +1,18 @@
+{{define "favicon_head"}}
+<link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="shortcut icon" href="/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="OutReachCRM">
+<link rel="manifest" href="/site.webmanifest">
+{{end}}
+
+{{define "brand_lockup"}}
+<a href="{{if .Href}}{{.Href}}{{else}}/{{end}}" class="brand-mark" title="OutReachCRM by VertexCRM">
+  <img class="brand-logo" src="/static/vertexcrm_logo.png" width="36" height="36" alt="VertexCRM">
+  <span class="brand-text">
+    <span class="brand-name">OutReach</span>
+    <span class="brand-sub">CRM</span>
+  </span>
+</a>
+{{end}}
