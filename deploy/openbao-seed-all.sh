@@ -199,6 +199,9 @@ kv_seed "octavertex/project100/production/aws" \
   AWS_REGION="us-east-1" \
   NOTE="Set AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY (or migrate CI to OIDC)"
 
+kv_seed "octavertex/project100/production/cloudflare" \
+  NOTE="Set CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN (S3 static CDN)"
+
 kv_seed "octavertex/project100/production/pocketbase" \
   POCKETBASE_URL="https://cms.octavertexmedia.com" \
   NOTE="Set POCKETBASE_TOKEN (+ admin credentials if needed)"
