@@ -31,6 +31,7 @@ Domains are **values** inside secrets (`PUBLIC_BASE_URL`, `ALLOWED_HOSTS`), not 
 | `octavertex` | `happynails` | HappyNails host | `octavertex/happynails/production` | Shared Contabo |
 | `octavertex` | `packmold` | Packmold host | `octavertex/packmold/production` | Shared Contabo |
 | `octavertex` | `suratbazaar` | SuratBazaar host | `octavertex/suratbazaar/production` | Shared Contabo |
+| `octavertex` | `project100` | cms/editor/analytics.octavertexmedia.com + Hugo→S3 sites | `octavertex/project100/production` | Nested `aws` / `pocketbase` / `database` / `app` |
 | `shared` | _(admin only)_ | cross-app SMTP etc. | `shared/production` | No AppRole to all apps; copy values into each app path when needed |
 
 Optional later (same pattern): `octavertex/readymadesteel`, `octavertex/mashotels`, tenant paths under `tenants/{id}/…`.

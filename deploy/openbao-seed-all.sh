@@ -119,6 +119,7 @@ APPS=(
   "happynails|octavertex-happynails-read|octavertex/happynails"
   "packmold|octavertex-packmold-read|octavertex/packmold"
   "suratbazaar|octavertex-suratbazaar-read|octavertex/suratbazaar"
+  "project100|octavertex-project100-read|octavertex/project100"
 )
 
 for entry in "${APPS[@]}"; do
@@ -185,6 +186,36 @@ kv_seed "octavertex/suratbazaar/production" \
   SECRET_KEY="$(openssl rand -base64 48)" \
   ENVIRONMENT="production" \
   NOTE="Replace with live SuratBazaar secrets"
+
+# Project100 (Hugo sites + PocketBase CMS + analytics stack)
+kv_seed "octavertex/project100/production" \
+  ENVIRONMENT="production" \
+  POCKETBASE_URL="https://cms.octavertexmedia.com" \
+  UMAMI_PUBLIC_URL="https://analytics.octavertexmedia.com" \
+  MEDIA_TRACKER_URL="https://track.octavertexmedia.com/click.js" \
+  NOTE="Fill nested aws/pocketbase/database/app groups with live secrets"
+
+kv_seed "octavertex/project100/production/aws" \
+  AWS_REGION="us-east-1" \
+  NOTE="Set AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY (or migrate CI to OIDC)"
+
+kv_seed "octavertex/project100/production/pocketbase" \
+  POCKETBASE_URL="https://cms.octavertexmedia.com" \
+  NOTE="Set POCKETBASE_TOKEN (+ admin credentials if needed)"
+
+kv_seed "octavertex/project100/production/database" \
+  DATABASE_USERNAME="project100" \
+  DATABASE_NAME="project100" \
+  UMAMI_DB_USER="umami" \
+  UMAMI_DB_NAME="umami" \
+  CLICKHOUSE_DB="project100_analytics" \
+  CLICKHOUSE_USER="project100" \
+  NOTE="Set DATABASE_PASSWORD REDIS_PASSWORD UMAMI_DB_PASSWORD CLICKHOUSE_PASSWORD UMAMI_APP_SECRET"
+
+kv_seed "octavertex/project100/production/app" \
+  ENFORCE_SEO_ON_SUPERUSER="1" \
+  TRACKER_RPM_PER_IP="120" \
+  NOTE="Set TRACKER_IP_SALT TRACKER_SITE_KEYS GRAFANA_ADMIN_PASSWORD"
 
 echo ""
 echo "========== AppRole credentials =========="
