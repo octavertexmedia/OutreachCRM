@@ -743,6 +743,148 @@ button:disabled { opacity: 0.55; cursor: wait; }
 .htmx-indicator { display: none; }
 .htmx-request .htmx-indicator { display: inline; }
 
+/* —— Campaigns (simplified) —— */
+.flash {
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  margin: 0 0 1rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.flash-ok {
+  background: rgba(15, 138, 95, 0.1);
+  border: 1px solid rgba(15, 138, 95, 0.28);
+  color: var(--good);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 2rem 1.25rem;
+}
+.empty-state h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.15rem;
+}
+
+.fold > summary,
+.camp-fold > summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  list-style: none;
+  color: var(--text);
+}
+.fold > summary::-webkit-details-marker,
+.camp-fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before,
+.camp-fold > summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 0.45rem;
+  color: var(--muted);
+  transition: transform 140ms ease;
+}
+.fold[open] > summary::before,
+.camp-fold[open] > summary::before { transform: rotate(90deg); }
+
+.muted-fold { opacity: 0.92; }
+.muted-fold > summary { color: var(--muted); font-weight: 650; }
+
+.check-label {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.5rem !important;
+}
+.check-label input { width: auto; }
+
+.camp-list { padding: 0; overflow: hidden; }
+.camp-list-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem 0.65rem;
+}
+.camp-list-head h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.camp-card {
+  padding: 1rem 1.25rem 1.1rem;
+  border-top: 1px solid var(--border-soft);
+}
+.camp-card-top { margin-bottom: 0.65rem; }
+.camp-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+}
+.camp-card-title h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.camp-meta {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.camp-actions {
+  display: inline-flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin: 0 0.5rem 0.55rem 0;
+}
+.camp-actions button { padding: 0.4rem 0.75rem; font-size: 0.85rem; }
+
+.camp-fold {
+  margin-top: 0.35rem;
+  padding-top: 0.65rem;
+  border-top: 1px dashed var(--border-soft);
+}
+.camp-fold.nested {
+  margin-top: 0.85rem;
+  border-top: 0;
+  padding-top: 0;
+}
+.camp-fold.nested > summary {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.camp-steps { margin: 0.75rem 0; font-size: 0.88rem; }
+.camp-steps th { padding-top: 0.35rem; }
+.step-subject { font-weight: 650; margin-bottom: 0.25rem; }
+.step-body {
+  margin: 0;
+  white-space: pre-wrap;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--muted);
+  max-height: 4.8rem;
+  overflow: hidden;
+}
+.camp-fold[open] .step-body { max-height: none; }
+
+.camp-enroll {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: end;
+  margin: 0.5rem 0 0;
+}
+.camp-enroll label { flex: 1 1 220px; }
+.camp-enroll select { width: 100%; }
+
+@media (max-width: 720px) {
+  .page-hero { flex-direction: column; align-items: stretch; }
+}
+
 /* —— Login —— */
 .login-wrap {
   min-height: 100vh;

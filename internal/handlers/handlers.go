@@ -55,7 +55,7 @@ func New(st *store.Store, a *auth.Manager, box *crypto.Box, oa *oauth.Managers, 
 				return "done"
 			case "error", "failed", "unsubscribe", "dead":
 				return "bad"
-			case "neutral", "enriching", "pending", "sender":
+			case "neutral", "enriching", "pending", "sender", "paused", "draft":
 				return "warn"
 			default:
 				return ""
@@ -503,12 +503,16 @@ func (s *Server) campaignsPost(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	limit, _ := strconv.Atoi(r.FormValue("daily_send_limit"))
 	if limit <= 0 {
-		limit = 50
+		limit = 20
 	}
 	start, _ := strconv.Atoi(r.FormValue("send_window_start"))
 	end, _ := strconv.Atoi(r.FormValue("send_window_end"))
 	if end == 0 && start == 0 {
-		end = 23
+		start, end = 9, 18
+	}
+	tz := strings.TrimSpace(r.FormValue("timezone"))
+	if tz == "" {
+		tz = "Asia/Kolkata"
 	}
 	id, err := s.Store.CreateCampaign(models.Campaign{
 		OwnerID:         u.ID,
@@ -516,7 +520,7 @@ func (s *Server) campaignsPost(w http.ResponseWriter, r *http.Request) {
 		Name:            strings.TrimSpace(r.FormValue("name")),
 		Status:          "draft",
 		DailySendLimit:  limit,
-		Timezone:        strings.TrimSpace(r.FormValue("timezone")),
+		Timezone:        tz,
 		SendWindowStart: start,
 		SendWindowEnd:   end,
 		ABEnabled:       r.FormValue("ab_enabled") == "1",
