@@ -101,6 +101,7 @@ Dashboard shows the live funnel for steps 1–6.
 
 ## 8. Changelog
 
+- 2026-07-19 — Search page uses `app-body` appshell (sidebar/topbar/inspector) like other console pages.
 - 2026-07-19 — Global search is full Zvec hybrid (HNSW + FTS + MultiQuery RRF); size cap raised to 80 MB; OpenAI embeddings with hash fallback; `make build-lite` for pure-Go FTS5 only.
 - 2026-07-19 — Global search: topbar + `/search` over leads/campaigns/inbox/queue/templates/accounts.
 - 2026-07-19 — Deliverability harden: DNSBL on send (24h cache), workspace-aware ESP webhooks + soft bounces, open/click tracking (`/t/…`), purchased-list flag, honest proxy labels on `/deliverability`.

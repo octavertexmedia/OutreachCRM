@@ -116,7 +116,7 @@
     <form class="topbar-search" method="get" action="/search" role="search">
       <label class="sr-only" for="global-search-q">Global search</label>
       <i class="fi fi-rr-search topbar-search-ico" aria-hidden="true"></i>
-      <input id="global-search-q" type="search" name="q" placeholder="Search leads, inbox…" autocomplete="off">
+      <input id="global-search-q" type="search" name="q" value="{{.Q}}" placeholder="Search leads, inbox…" autocomplete="off">
     </form>
     <div class="topbar-actions">
       <a class="topbar-link" href="/search" title="Search"><i class="fi fi-rr-search-alt"></i> Search</a>

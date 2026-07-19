@@ -3,44 +3,49 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Search · OutReachCRM</title>
+  <title>{{if .Q}}{{.Q}} · {{end}}Search · OutReachCRM</title>
   {{template "fonts" .}}
   <link rel="stylesheet" href="/static/app.css">
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
 </head>
-<body class="app-shell">
-{{template "nav" .}}
+<body class="app-body">
+  {{template "nav" .}}
 
-<header class="page-hero">
-  <div>
-    <p class="eyebrow">Find anything</p>
-    <h1>Search</h1>
-    <p class="sub muted">Hybrid search (dense vectors + full-text) across leads, campaigns, inbox, queue, templates, and accounts.</p>
+  <div class="page-hero">
+    <div>
+      <h1>Search</h1>
+      <p class="sub" style="margin-bottom:0">Hybrid search across leads, campaigns, inbox, queue, templates, and accounts.</p>
+    </div>
+    <div class="row-actions">
+      <a class="topbar-link" href="/leads" style="border-color:var(--border)">Leads</a>
+      <a class="topbar-link" href="/inbox" style="border-color:var(--border)">Inbox</a>
+      <a class="topbar-link" href="/campaigns" style="border-color:var(--border)">Campaigns</a>
+    </div>
   </div>
-</header>
 
-<form class="search-page-form" method="get" action="/search" role="search">
-  <label class="sr-only" for="search-q">Search</label>
-  <input id="search-q" type="search" name="q" value="{{.Q}}" placeholder="Name, email, company, subject…" autofocus
-    hx-get="/search/results" hx-trigger="keyup changed delay:280ms, search" hx-target="#search-results" hx-include="this">
-  <button type="submit">Search</button>
-</form>
-
-<p class="muted search-meta">Index: {{.Backend}}</p>
-
-<div id="search-results">
-  {{template "search_results.html" .}}
-</div>
-
-{{if and .User .User.IsAdmin}}
-<details class="fold panel muted-fold">
-  <summary>Admin</summary>
-  <form method="post" action="/search/reindex" style="margin-top:0.75rem">
-    <button type="submit" class="secondary">Rebuild search index</button>
+  <form class="search-page-form panel" method="get" action="/search" role="search">
+    <label class="sr-only" for="search-q">Search</label>
+    <input id="search-q" type="search" name="q" value="{{.Q}}" placeholder="Name, email, company, subject…" autofocus
+      hx-get="/search/results" hx-trigger="keyup changed delay:280ms, search" hx-target="#search-results" hx-include="this"
+      hx-push-url="true">
+    <button type="submit">Search</button>
   </form>
-</details>
-{{end}}
 
-{{template "foot" .}}
+  <p class="muted search-meta">Index: {{.Backend}}{{if .Q}} · query “{{.Q}}”{{end}}</p>
+
+  <div id="search-results" class="panel">
+    {{template "search_results.html" .}}
+  </div>
+
+  {{if and .User .User.IsAdmin}}
+  <details class="fold panel muted-fold" style="margin-top:1rem">
+    <summary>Admin</summary>
+    <form method="post" action="/search/reindex" style="margin-top:0.75rem">
+      <button type="submit" class="secondary">Rebuild search index</button>
+    </form>
+  </details>
+  {{end}}
+
+  {{template "foot" .}}
 </body>
 </html>

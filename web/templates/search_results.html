@@ -1,34 +1,31 @@
 {{define "search_results.html"}}
 {{if not .Q}}
 <div class="empty-state search-empty">
-  <p class="muted">Type to search across your workspace.</p>
+  <h2>Search the workspace</h2>
+  <p class="muted">Type a name, email, company, or subject — results update as you type.</p>
 </div>
 {{else if not .Results}}
 <div class="empty-state search-empty">
-  <p>No matches for <strong>{{.Q}}</strong>.</p>
+  <h2>No matches</h2>
+  <p class="muted">Nothing found for <strong>{{.Q}}</strong>. Try another term or rebuild the index (admin).</p>
 </div>
 {{else}}
 <ul class="search-hit-list" role="list">
   {{range .Results}}
-  <li class="search-hit">
-    <a href="{{.Href}}" class="search-hit-link">
+  <li class="search-hit selectable"
+    {{if or (eq .Kind "lead") (eq .Kind "campaign") (eq .Kind "queue")}}
+    data-inspect
+    {{if eq .Kind "lead"}}hx-get="/panel/leads/{{.EntityID}}"{{else if eq .Kind "campaign"}}hx-get="/panel/campaigns/{{.EntityID}}"{{else}}hx-get="/panel/queue/{{.EntityID}}"{{end}}
+    hx-target="#inspector-body"
+    hx-swap="innerHTML"
+    hx-trigger="click[!event.target.closest('a, button')]"
+    {{end}}>
+    <div class="search-hit-link">
       <span class="search-hit-kind">{{kindLabel .Kind}}</span>
       <span class="search-hit-title">{{.Title}}</span>
       {{if .Snippet}}<span class="search-hit-snip muted">{{.Snippet}}</span>{{end}}
-    </a>
-    {{if eq .Kind "lead"}}
-    <button type="button" class="secondary search-hit-inspect"
-      hx-get="/panel/leads/{{.EntityID}}" hx-target="#inspector-body" hx-swap="innerHTML"
-      onclick="document.body.classList.add('inspector-open');document.body.classList.remove('inspector-closed')">Inspect</button>
-    {{else if eq .Kind "campaign"}}
-    <button type="button" class="secondary search-hit-inspect"
-      hx-get="/panel/campaigns/{{.EntityID}}" hx-target="#inspector-body" hx-swap="innerHTML"
-      onclick="document.body.classList.add('inspector-open');document.body.classList.remove('inspector-closed')">Inspect</button>
-    {{else if eq .Kind "queue"}}
-    <button type="button" class="secondary search-hit-inspect"
-      hx-get="/panel/queue/{{.EntityID}}" hx-target="#inspector-body" hx-swap="innerHTML"
-      onclick="document.body.classList.add('inspector-open');document.body.classList.remove('inspector-closed')">Inspect</button>
-    {{end}}
+    </div>
+    <a class="secondary search-hit-inspect" href="{{.Href}}">Open</a>
   </li>
   {{end}}
 </ul>
