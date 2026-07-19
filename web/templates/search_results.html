@@ -24,6 +24,7 @@
       <span class="search-hit-kind">{{kindLabel .Kind}}</span>
       <span class="search-hit-title">{{.Title}}</span>
       {{if .Snippet}}<span class="search-hit-snip muted">{{.Snippet}}</span>{{end}}
+      {{if .Facets}}<span class="search-hit-facets muted">{{.Facets}}</span>{{end}}
     </div>
     <a class="secondary search-hit-inspect" href="{{.Href}}">Open</a>
   </li>

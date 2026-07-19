@@ -58,7 +58,13 @@ func (s *Service) Search(q Query) ([]Result, error) {
 	if s == nil || s.eng == nil {
 		return nil, fmt.Errorf("search not available")
 	}
-	return s.eng.Search(q)
+	q.Kind = ParseKind(string(q.Kind))
+	q.Field = ParseField(q.Field)
+	results, err := s.eng.Search(q)
+	if err != nil {
+		return nil, err
+	}
+	return FilterResults(results, q.Kind, q.Field), nil
 }
 
 // Upsert indexes documents immediately.
@@ -192,6 +198,8 @@ func DocFromLead(l models.Lead) Document {
 		Kind: KindLead, EntityID: l.ID, WorkspaceID: l.WorkspaceID, OwnerID: l.OwnerID,
 		Title: title, Snippet: Snippet(JoinText(l.Company, l.Email, l.Title), 160),
 		Content: content, Href: fmt.Sprintf("/leads#lead-%d", l.ID),
+		Name: l.Name, Email: l.Email, Phone: l.Phone, Website: l.Website,
+		Company: l.Company, Subject: l.DraftSubject, Notes: l.Notes,
 	}
 }
 
@@ -205,6 +213,7 @@ func DocFromCampaign(c models.Campaign) Document {
 		Kind: KindCampaign, EntityID: c.ID, WorkspaceID: c.WorkspaceID, OwnerID: c.OwnerID,
 		Title: title, Snippet: Snippet(JoinText(c.Status, c.Timezone), 160),
 		Content: JoinText(c.Name, c.Status, c.Timezone), Href: fmt.Sprintf("/campaigns#campaign-%d", c.ID),
+		Name: c.Name,
 	}
 }
 
@@ -221,6 +230,7 @@ func DocFromTemplate(t models.EmailTemplate) Document {
 		Kind: KindTemplate, EntityID: t.ID, WorkspaceID: t.WorkspaceID, OwnerID: 0,
 		Title: title, Snippet: Snippet(t.Subject, 160),
 		Content: JoinText(t.Name, t.Subject, t.Body), Href: "/templates",
+		Name: t.Name, Subject: t.Subject, Notes: t.Body,
 	}
 }
 
@@ -248,6 +258,7 @@ func DocFromReply(r models.InboundReply) Document {
 		Kind: KindReply, EntityID: r.ID, WorkspaceID: ws, OwnerID: owner,
 		Title: title, Snippet: Snippet(JoinText(r.FromEmail, r.LeadName, r.Intent), 160),
 		Content: JoinText(r.FromEmail, r.LeadName, r.Subject, r.Body, r.Intent, r.ThreadID), Href: href,
+		Name: r.LeadName, Email: r.FromEmail, Subject: r.Subject, Notes: r.Body,
 	}
 }
 
@@ -265,6 +276,7 @@ func DocFromQueue(m models.OutboundMessage) Document {
 		Title: title, Snippet: Snippet(JoinText(m.ToEmail, m.Status), 160),
 		Content: JoinText(m.ToEmail, m.Subject, m.Body, m.Status, m.Error, m.LastError),
 		Href:    fmt.Sprintf("/queue#queue-%d", m.ID),
+		Email: m.ToEmail, Subject: m.Subject, Notes: m.Body,
 	}
 }
 
@@ -278,5 +290,6 @@ func DocFromAccount(a models.EmailAccount) Document {
 		Kind: KindAccount, EntityID: a.ID, WorkspaceID: a.WorkspaceID, OwnerID: a.OwnerID,
 		Title: title, Snippet: Snippet(JoinText(a.Provider, a.Domain), 160),
 		Content: JoinText(a.Email, a.Provider, a.Domain, a.SMTPHost, a.IMAPHost), Href: "/accounts",
+		Email: a.Email, Website: a.Domain, Company: a.Provider,
 	}
 }

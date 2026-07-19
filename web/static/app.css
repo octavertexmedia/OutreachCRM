@@ -592,6 +592,54 @@ tr[data-inspect].is-selected,
 
 .search-meta { font-size: 0.8rem; margin: 0 0 1rem; }
 
+.search-filters {
+  margin: 0 0 1rem;
+}
+
+.search-filter-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 0.65rem 0 0.4rem;
+}
+
+.search-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.search-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--muted) !important;
+  text-decoration: none !important;
+  font-size: 0.82rem;
+  font-weight: 650;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.search-chip:hover {
+  color: var(--text) !important;
+  border-color: var(--accent, #1f6b5c);
+}
+
+.search-chip.active {
+  color: var(--text) !important;
+  border-color: var(--accent, #1f6b5c);
+  background: rgba(31, 107, 92, 0.1);
+}
+
+.search-hit-facets {
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
+
 .search-hit-list {
   list-style: none;
   margin: 0;

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -21,44 +22,69 @@ func (s *Server) indexDocs(docs ...search.Document) {
 	s.Search.Upsert(docs)
 }
 
-func (s *Server) searchGet(w http.ResponseWriter, r *http.Request) {
+func (s *Server) parseSearchQuery(r *http.Request, uLimit int) (qText string, kind search.Kind, field string, results []search.Result) {
 	u := s.current(r)
-	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	qText = strings.TrimSpace(r.URL.Query().Get("q"))
+	kind = search.ParseKind(r.URL.Query().Get("kind"))
+	field = search.ParseField(r.URL.Query().Get("field"))
+	if qText == "" || s.Search == nil {
+		return qText, kind, field, nil
+	}
+	results, _ = s.Search.Search(search.Query{
+		Text:        qText,
+		Kind:        kind,
+		Field:       field,
+		WorkspaceID: u.WorkspaceID,
+		OwnerID:     u.ID,
+		Admin:       u.IsAdmin(),
+		Limit:       uLimit,
+	})
+	return qText, kind, field, results
+}
+
+func (s *Server) searchPageData(r *http.Request, limit int) map[string]any {
+	u := s.current(r)
+	q, kind, field, results := s.parseSearchQuery(r, limit)
 	backend := "none"
 	if s.Search != nil {
 		backend = s.Search.Backend()
 	}
-	var results []search.Result
-	if q != "" && s.Search != nil {
-		results, _ = s.Search.Search(search.Query{
-			Text:        q,
-			WorkspaceID: u.WorkspaceID,
-			OwnerID:     u.ID,
-			Admin:       u.IsAdmin(),
-			Limit:       40,
-		})
+	return map[string]any{
+		"Nav":        "search",
+		"User":       u,
+		"Q":          q,
+		"Kind":       string(kind),
+		"Field":      field,
+		"Results":    results,
+		"Backend":    backend,
+		"Categories": search.Categories(),
+		"Fields":     search.Fields(),
+		"SearchURL": func(k, f string) string {
+			v := url.Values{}
+			if q != "" {
+				v.Set("q", q)
+			}
+			if k != "" {
+				v.Set("kind", k)
+			}
+			if f != "" {
+				v.Set("field", f)
+			}
+			qs := v.Encode()
+			if qs == "" {
+				return "/search"
+			}
+			return "/search?" + qs
+		},
 	}
-	s.render(w, "search.html", map[string]any{
-		"Nav": "search", "User": u, "Q": q, "Results": results, "Backend": backend,
-	})
+}
+
+func (s *Server) searchGet(w http.ResponseWriter, r *http.Request) {
+	s.render(w, "search.html", s.searchPageData(r, 40))
 }
 
 func (s *Server) searchResults(w http.ResponseWriter, r *http.Request) {
-	u := s.current(r)
-	q := strings.TrimSpace(r.URL.Query().Get("q"))
-	var results []search.Result
-	if q != "" && s.Search != nil {
-		results, _ = s.Search.Search(search.Query{
-			Text:        q,
-			WorkspaceID: u.WorkspaceID,
-			OwnerID:     u.ID,
-			Admin:       u.IsAdmin(),
-			Limit:       25,
-		})
-	}
-	s.render(w, "search_results.html", map[string]any{
-		"User": u, "Q": q, "Results": results,
-	})
+	s.render(w, "search_results.html", s.searchPageData(r, 40))
 }
 
 func (s *Server) searchReindex(w http.ResponseWriter, r *http.Request) {

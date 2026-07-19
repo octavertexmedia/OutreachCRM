@@ -14,7 +14,7 @@
   <div class="page-hero">
     <div>
       <h1>Search</h1>
-      <p class="sub" style="margin-bottom:0">Hybrid search across leads, campaigns, inbox, queue, templates, and accounts.</p>
+      <p class="sub" style="margin-bottom:0">Filter by category and field — hybrid search across the workspace.</p>
     </div>
     <div class="row-actions">
       <a class="topbar-link" href="/leads" style="border-color:var(--border)">Leads</a>
@@ -23,15 +23,55 @@
     </div>
   </div>
 
-  <form class="search-page-form panel" method="get" action="/search" role="search">
+  <form id="search-form" class="search-page-form panel" method="get" action="/search" role="search">
+    <input type="hidden" name="kind" id="search-kind" value="{{.Kind}}">
+    <input type="hidden" name="field" id="search-field" value="{{.Field}}">
     <label class="sr-only" for="search-q">Search</label>
-    <input id="search-q" type="search" name="q" value="{{.Q}}" placeholder="Name, email, company, subject…" autofocus
-      hx-get="/search/results" hx-trigger="keyup changed delay:280ms, search" hx-target="#search-results" hx-include="this"
+    <input id="search-q" type="search" name="q" value="{{.Q}}" placeholder="Name, email, company, phone, website…" autofocus
+      hx-get="/search/results"
+      hx-trigger="keyup changed delay:280ms, search"
+      hx-target="#search-results"
+      hx-include="#search-form"
       hx-push-url="true">
     <button type="submit">Search</button>
   </form>
 
-  <p class="muted search-meta">Index: {{.Backend}}{{if .Q}} · query “{{.Q}}”{{end}}</p>
+  <div class="search-filters" aria-label="Search categories">
+    <p class="search-filter-label muted">Category</p>
+    <div class="search-chip-row" role="tablist">
+      {{range .Categories}}
+      <a class="search-chip {{if eq $.Kind .ID}}active{{end}}"
+         href="{{call $.SearchURL .ID $.Field}}"
+         role="tab"
+         aria-selected="{{if eq $.Kind .ID}}true{{else}}false{{end}}"
+         hx-get="/search/results?q={{urlquery $.Q}}&kind={{urlquery .ID}}&field={{urlquery $.Field}}"
+         hx-target="#search-results"
+         hx-push-url="/search?q={{urlquery $.Q}}&kind={{urlquery .ID}}&field={{urlquery $.Field}}"
+         onclick="document.getElementById('search-kind').value='{{.ID}}'">{{.Label}}</a>
+      {{end}}
+    </div>
+    <p class="search-filter-label muted">Field</p>
+    <div class="search-chip-row" role="tablist">
+      {{range .Fields}}
+      <a class="search-chip {{if eq $.Field .ID}}active{{end}}"
+         href="{{call $.SearchURL $.Kind .ID}}"
+         role="tab"
+         aria-selected="{{if eq $.Field .ID}}true{{else}}false{{end}}"
+         hx-get="/search/results?q={{urlquery $.Q}}&kind={{urlquery $.Kind}}&field={{urlquery .ID}}"
+         hx-target="#search-results"
+         hx-push-url="/search?q={{urlquery $.Q}}&kind={{urlquery $.Kind}}&field={{urlquery .ID}}"
+         onclick="document.getElementById('search-field').value='{{.ID}}'">{{.Label}}</a>
+      {{end}}
+    </div>
+  </div>
+
+  <p class="muted search-meta">
+    Index: {{.Backend}}
+    {{if .Q}} · “{{.Q}}”{{end}}
+    {{if .Kind}} · {{.Kind}}{{else}} · all{{end}}
+    {{if .Field}} · {{.Field}}{{else}} · any field{{end}}
+    {{if .Results}} · {{len .Results}} hit(s){{end}}
+  </p>
 
   <div id="search-results" class="panel">
     {{template "search_results.html" .}}

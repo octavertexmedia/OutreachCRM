@@ -33,6 +33,14 @@ type Document struct {
 	Snippet     string
 	Content     string
 	Href        string
+	// Structured fields for category / attribute filters.
+	Name    string
+	Email   string
+	Phone   string
+	Website string
+	Company string
+	Subject string
+	Notes   string
 }
 
 // Result is a ranked hit returned to the UI.
@@ -45,11 +53,14 @@ type Result struct {
 	Snippet     string
 	Href        string
 	Score       float64
+	Facets      string // e.g. "has_email has_phone"
 }
 
 // Query scopes a search request.
 type Query struct {
 	Text        string
+	Kind        Kind   // "" = all; KindEmail = email-related entities
+	Field       string // "" = any; email|phone|website|company|name|subject|notes
 	WorkspaceID int64
 	OwnerID     int64 // 0 = admin / all owners
 	Admin       bool

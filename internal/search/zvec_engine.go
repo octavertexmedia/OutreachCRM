@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 )
 
 // schemaVersion bumps when the on-disk collection layout changes.
-const schemaVersion = "hybrid-hnsw-fts-1536-v1"
+const schemaVersion = "hybrid-hnsw-fts-1536-v2-facets"
 
 // zvecEngine is Alibaba Zvec with dense HNSW + native FTS + hybrid MultiQuery RRF.
 type zvecEngine struct {
@@ -103,7 +104,7 @@ func createZvecCollection(path string) (*zvec.Collection, error) {
 	if err := addStringInvert("id"); err != nil {
 		return nil, err
 	}
-	if err := addStringPlain("kind", false); err != nil {
+	if err := addStringInvert("kind"); err != nil {
 		return nil, err
 	}
 	if err := addInt64("entity_id"); err != nil {
@@ -123,6 +124,16 @@ func createZvecCollection(path string) (*zvec.Collection, error) {
 	}
 	if err := addStringPlain("href", true); err != nil {
 		return nil, err
+	}
+	for _, f := range []string{"name", "email", "phone", "website", "company", "subject", "notes", "facets"} {
+		if err := addStringPlain(f, true); err != nil {
+			return nil, err
+		}
+	}
+	for _, f := range []string{"has_name", "has_email", "has_phone", "has_website", "has_company", "has_subject", "has_notes"} {
+		if err := addInt64(f); err != nil {
+			return nil, err
+		}
 	}
 
 	// Native FTS (standard tokenizer + lowercase)
@@ -200,6 +211,22 @@ func (e *zvecEngine) Upsert(docs []Document) error {
 		_ = doc.AddStringField("snippet", d.Snippet)
 		_ = doc.AddStringField("href", d.Href)
 		_ = doc.AddStringField("content", d.Content)
+		_ = doc.AddStringField("name", d.Name)
+		_ = doc.AddStringField("email", d.Email)
+		_ = doc.AddStringField("phone", d.Phone)
+		_ = doc.AddStringField("website", d.Website)
+		_ = doc.AddStringField("company", d.Company)
+		_ = doc.AddStringField("subject", d.Subject)
+		_ = doc.AddStringField("notes", d.Notes)
+		facets := FacetTags(d)
+		_ = doc.AddStringField("facets", facets)
+		_ = doc.AddInt64Field("has_name", boolInt(strings.TrimSpace(d.Name) != ""))
+		_ = doc.AddInt64Field("has_email", boolInt(strings.TrimSpace(d.Email) != ""))
+		_ = doc.AddInt64Field("has_phone", boolInt(strings.TrimSpace(d.Phone) != ""))
+		_ = doc.AddInt64Field("has_website", boolInt(strings.TrimSpace(d.Website) != ""))
+		_ = doc.AddInt64Field("has_company", boolInt(strings.TrimSpace(d.Company) != ""))
+		_ = doc.AddInt64Field("has_subject", boolInt(strings.TrimSpace(d.Subject) != ""))
+		_ = doc.AddInt64Field("has_notes", boolInt(strings.TrimSpace(d.Notes) != ""))
 		embText := JoinText(d.Title, d.Content)
 		_ = doc.AddVectorFP32Field("embedding", e.embedText(embText))
 		batch = append(batch, doc)
@@ -267,12 +294,13 @@ func (e *zvecEngine) Search(q Query) ([]Result, error) {
 		limit = 100
 	}
 
-	filter := fmt.Sprintf("workspace_id = %d", q.WorkspaceID)
-	if !q.Admin && q.OwnerID > 0 {
-		filter += fmt.Sprintf(" AND (owner_id = 0 OR owner_id = %d)", q.OwnerID)
+	filter := buildZvecFilter(q)
+	outFields := []string{"kind", "entity_id", "workspace_id", "owner_id", "title", "snippet", "href", "facets"}
+	embSrc := match
+	if q.Field != FieldAny {
+		embSrc = q.Field + " " + match
 	}
-	outFields := []string{"kind", "entity_id", "workspace_id", "owner_id", "title", "snippet", "href"}
-	qvec := e.embedText(match)
+	qvec := e.embedText(embSrc)
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -386,6 +414,7 @@ func docsToResults(docs []*zvec.Doc) []Result {
 		title, _ := d.GetStringField("title")
 		snippet, _ := d.GetStringField("snippet")
 		href, _ := d.GetStringField("href")
+		facets, _ := d.GetStringField("facets")
 		entityID, _ := d.GetInt64Field("entity_id")
 		ws, _ := d.GetInt64Field("workspace_id")
 		owner, _ := d.GetInt64Field("owner_id")
@@ -397,8 +426,34 @@ func docsToResults(docs []*zvec.Doc) []Result {
 			Title:       title,
 			Snippet:     snippet,
 			Href:        href,
+			Facets:      facets,
 			Score:       float64(d.GetScore()),
 		})
 	}
 	return out
+}
+
+func buildZvecFilter(q Query) string {
+	filter := fmt.Sprintf("workspace_id = %d", q.WorkspaceID)
+	if !q.Admin && q.OwnerID > 0 {
+		filter += fmt.Sprintf(" AND (owner_id = 0 OR owner_id = %d)", q.OwnerID)
+	}
+	switch q.Kind {
+	case "":
+	case KindEmail:
+		filter += ` AND (kind = 'lead' OR kind = 'account' OR kind = 'reply' OR kind = 'queue')`
+	default:
+		filter += fmt.Sprintf(" AND kind = '%s'", string(q.Kind))
+	}
+	if q.Field != FieldAny {
+		filter += fmt.Sprintf(" AND has_%s = 1", q.Field)
+	}
+	return filter
+}
+
+func boolInt(ok bool) int64 {
+	if ok {
+		return 1
+	}
+	return 0
 }
