@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Audiences · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body class="app-body">
+  {{template "nav" .}}
+
+  <div class="page-hero">
+    <div>
+      <h1>Audiences</h1>
+      <p class="sub" style="margin-bottom:0">Filter imported &amp; enriched leads, freeze a member list, then enroll into a campaign.</p>
+    </div>
+    <div class="row-actions">
+      <a class="topbar-link" href="/leads" style="border-color:var(--border)">Leads</a>
+      <a class="topbar-link" href="/campaigns" style="border-color:var(--border)">Campaigns</a>
+    </div>
+  </div>
+
+  {{if .Created}}
+  <div class="flash flash-ok" role="status">Audience created.</div>
+  {{else if .Deleted}}
+  <div class="flash flash-ok" role="status">Audience deleted.</div>
+  {{else if .Enrolled}}
+  <div class="flash flash-ok" role="status">Enrolled {{.EnrollN}} · skipped {{.SkipN}}.</div>
+  {{end}}
+
+  {{if eq .AudienceCount 0}}
+  <div class="panel empty-state">
+    <h2>No audiences yet</h2>
+    <p class="muted">Build one from category, source, enrichment status, or company — then enroll the snapshot into a campaign before you activate sends.</p>
+  </div>
+  {{end}}
+
+  <details class="fold panel" {{if eq .AudienceCount 0}}open{{end}}>
+    <summary>New audience</summary>
+    <form method="post" action="/audiences" class="aud-filter-form" style="margin-top:0.85rem"
+          hx-get="/api/audiences/preview"
+          hx-trigger="change delay:200ms, keyup changed delay:400ms from:input, keyup changed delay:400ms from:select"
+          hx-include="this"
+          hx-target="#aud-preview-create"
+          hx-swap="innerHTML">
+      <div class="inline">
+        <label>Name<input name="name" required placeholder="Mfg ICP · India · has email"></label>
+        <label>Description<input name="description" placeholder="Optional note"></label>
+      </div>
+      <div class="aud-filters">
+        <label>Categories
+          <input name="categories" list="cat-list" placeholder="manufacturing, saas (comma-sep)">
+        </label>
+        <label>Sources
+          <input name="sources" list="src-list" placeholder="csv, ovm-mfg (comma-sep)">
+        </label>
+        <label>Enrichment
+          <input name="enrichment_statuses" list="st-list" placeholder="done, pending">
+        </label>
+        <label>Company contains<input name="company_contains" placeholder="Steel"></label>
+        <label>Search<input name="q" placeholder="name / email / company"></label>
+        <label>Min premium<input name="min_premium" type="number" min="0" value="0"></label>
+        <label>Exclude enrolled in
+          <select name="exclude_enrolled_in">
+            <option value="0">— none —</option>
+            {{range .Campaigns}}
+            <option value="{{.ID}}">{{.Name}}</option>
+            {{end}}
+          </select>
+        </label>
+        <label class="check-label"><span>Has email</span><input type="checkbox" name="has_email" value="1" checked></label>
+        <input type="hidden" name="exclude_suppressed" value="1">
+        <label class="check-label"><span>Exclude suppressed</span><input type="checkbox" name="exclude_suppressed_ui" value="1" checked
+          onchange="this.form.exclude_suppressed.value=this.checked?'1':'0'"></label>
+      </div>
+      <div id="aud-preview-create" class="aud-preview-box muted">Adjust filters to preview matching leads.</div>
+      <div class="row-actions" style="margin-top:0.85rem">
+        <button type="submit">Create &amp; freeze members</button>
+      </div>
+    </form>
+  </details>
+
+  <datalist id="cat-list">{{range .Categories}}<option value="{{.}}">{{end}}</datalist>
+  <datalist id="src-list">{{range .Sources}}<option value="{{.}}">{{end}}</datalist>
+  <datalist id="st-list">{{range .EnrichStatuses}}<option value="{{.}}">{{end}}</datalist>
+
+  {{if gt .AudienceCount 0}}
+  <div class="panel camp-list">
+    <div class="camp-list-head">
+      <h2>Your audiences</h2>
+      <span class="muted">{{.AudienceCount}} total</span>
+    </div>
+    {{range .Audiences}}
+    <article class="camp-card aud-card">
+      <div class="camp-card-top">
+        <div class="camp-card-title">
+          <h3><a href="/audiences/{{.ID}}">{{.Name}}</a></h3>
+          <span class="badge">{{.MemberCount}} members</span>
+        </div>
+        <p class="camp-meta">
+          {{if .Description}}{{.Description}} · {{end}}
+          Updated {{.UpdatedAt.Format "2006-01-02 15:04"}}
+        </p>
+      </div>
+      <div class="row-actions">
+        <a class="topbar-link" href="/audiences/{{.ID}}" style="border-color:var(--border)">Open</a>
+        <form method="post" action="/audiences/{{.ID}}/refresh" style="margin:0">
+          <button type="submit" class="secondary">Refresh members</button>
+        </form>
+      </div>
+    </article>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{template "foot" .}}
+</body>
+</html>

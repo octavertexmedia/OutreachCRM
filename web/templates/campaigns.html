@@ -14,9 +14,10 @@
   <div class="page-hero">
     <div>
       <h1>Campaigns</h1>
-      <p class="sub" style="margin-bottom:0">Sequences that send. Activate, enroll leads, then watch the queue.</p>
+      <p class="sub" style="margin-bottom:0">Sequences that send. Build an audience, enroll it, activate — then watch the queue.</p>
     </div>
     <div class="row-actions">
+      <a class="topbar-link" href="/audiences" style="border-color:var(--border)">Audiences</a>
       <a class="topbar-link" href="/queue" style="border-color:var(--border)">Queue</a>
       <a class="topbar-link" href="/templates" style="border-color:var(--border)">Templates</a>
       <a class="topbar-link" href="/leads" style="border-color:var(--border)">Leads</a>
@@ -30,6 +31,14 @@
     {{if and (eq .SeedCampaigns 0) (eq .SeedTemplates 0)}}
     <span class="muted"> (already present)</span>
     {{end}}
+  </div>
+  {{else if .Enrolled}}
+  <div class="flash flash-ok" role="status">Enrolled {{.EnrollN}} from audience · skipped {{.SkipN}}.</div>
+  {{end}}
+
+  {{if and (gt .CampaignCount 0) (eq .AudienceCount 0)}}
+  <div class="flash" role="status">
+    Create an <a href="/audiences">audience</a> from filtered leads before enrolling — single-lead enroll is under Advanced.
   </div>
   {{end}}
 
@@ -78,11 +87,15 @@
           {{if .ABEnabled}}<span class="badge">A/B</span>{{end}}
         </div>
         <p class="camp-meta">
-          {{.DailySendLimit}}/day
+          {{.EnrolledCount}} enrolled
+          · {{.DailySendLimit}}/day
           · {{len .Steps}} steps
           · {{if .Timezone}}{{.Timezone}}{{else}}UTC{{end}}
           {{.SendWindowStart}}–{{.SendWindowEnd}}h
         </p>
+        {{if eq .EnrolledCount 0}}
+        <p class="muted" style="margin:0.35rem 0 0;font-size:0.82rem">Enroll an audience before sends will queue.</p>
+        {{end}}
       </div>
 
       <form method="post" action="/campaigns/{{.ID}}/status" class="camp-actions">
@@ -124,17 +137,36 @@
           </tbody>
         </table>
 
-        <form method="post" action="/campaigns/{{.ID}}/enroll" class="camp-enroll">
-          <label>Enroll lead
-            <select name="lead_id" required>
+        {{if eq (len $.Audiences) 0}}
+        <p class="muted" style="margin:0.75rem 0">No audiences yet. <a href="/audiences">Create an audience</a> from filtered leads, then enroll here.</p>
+        {{else}}
+        <form method="post" action="/campaigns/{{.ID}}/enroll-audience" class="camp-enroll">
+          <label>Enroll audience
+            <select name="audience_id" required>
               <option value="">Select…</option>
-              {{range $.Leads}}
-              <option value="{{.ID}}">{{.Name}}{{if .Company}} · {{.Company}}{{end}} — {{.Email}}</option>
+              {{range $.Audiences}}
+              <option value="{{.ID}}">{{.Name}} ({{.MemberCount}})</option>
               {{end}}
             </select>
           </label>
-          <button type="submit">Enroll</button>
+          <button type="submit">Enroll audience</button>
         </form>
+        {{end}}
+
+        <details class="camp-fold nested">
+          <summary>Advanced · single lead</summary>
+          <form method="post" action="/campaigns/{{.ID}}/enroll" class="camp-enroll" style="margin-top:0.75rem">
+            <label>Enroll lead
+              <select name="lead_id" required>
+                <option value="">Select…</option>
+                {{range $.Leads}}
+                <option value="{{.ID}}">{{.Name}}{{if .Company}} · {{.Company}}{{end}} — {{.Email}}</option>
+                {{end}}
+              </select>
+            </label>
+            <button type="submit">Enroll</button>
+          </form>
+        </details>
 
         <details class="camp-fold nested">
           <summary>Add step</summary>

@@ -146,6 +146,9 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 	{5, `
 -- email deliverability engine
 `},
+	{6, `
+-- audiences: saved lead filters + member snapshots
+`},
 }
 
 func (s *Store) migrate() error {
@@ -189,6 +192,12 @@ func (s *Store) migrate() error {
 		}
 		if m.version == 5 {
 			if err := upgradeDeliverability(tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("migration %d: %w", m.version, err)
+			}
+		}
+		if m.version == 6 {
+			if err := upgradeAudiences(tx); err != nil {
 				_ = tx.Rollback()
 				return fmt.Errorf("migration %d: %w", m.version, err)
 			}
@@ -403,5 +412,30 @@ CREATE TABLE IF NOT EXISTS blacklist_checks (
 	_, _ = tx.Exec(`INSERT OR IGNORE INTO app_settings(key, value) VALUES('deliverability_max_bounce_rate', '2')`)
 	_, _ = tx.Exec(`INSERT OR IGNORE INTO app_settings(key, value) VALUES('deliverability_max_complaint_rate', '0.1')`)
 	return nil
+}
+
+func upgradeAudiences(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+CREATE TABLE IF NOT EXISTS audiences (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL DEFAULT 1,
+  owner_id INTEGER NOT NULL DEFAULT 0,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  filter_json TEXT NOT NULL DEFAULT '{}',
+  member_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS audience_members (
+  audience_id INTEGER NOT NULL,
+  lead_id INTEGER NOT NULL,
+  added_at TEXT NOT NULL,
+  PRIMARY KEY (audience_id, lead_id)
+);
+CREATE INDEX IF NOT EXISTS idx_audiences_workspace ON audiences(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_audience_members_lead ON audience_members(lead_id);
+`)
+	return err
 }
 

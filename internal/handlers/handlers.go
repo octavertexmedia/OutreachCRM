@@ -59,6 +59,7 @@ func New(st *store.Store, a *auth.Manager, box *crypto.Box, oa *oauth.Managers, 
 			}
 			return template.JS(b)
 		},
+		"join":      strings.Join,
 		"kindLabel": search.KindLabel,
 		"badgeClass": func(status string) string {
 			switch status {
@@ -124,6 +125,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /campaigns/{id}/steps", s.campaignAddStep)
 	mux.HandleFunc("POST /campaigns/{id}/status", s.campaignStatus)
 	mux.HandleFunc("POST /campaigns/{id}/enroll", s.campaignEnroll)
+	mux.HandleFunc("POST /campaigns/{id}/enroll-audience", s.campaignEnrollAudience)
 	mux.HandleFunc("GET /queue", s.queueGet)
 
 	mux.HandleFunc("GET /accounts", s.accountsGet)
@@ -143,6 +145,7 @@ func (s *Server) Routes() http.Handler {
 	s.registerProdRoutes(mux)
 	s.registerPanelRoutes(mux)
 	s.registerSearchRoutes(mux)
+	s.registerAudienceRoutes(mux)
 
 	return s.wrap(s.Auth.Middleware(mux))
 }
@@ -306,19 +309,33 @@ func (s *Server) leadsGet(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	leads, err := s.Store.ListLeads(u.IsAdmin(), u.ID)
+	f := parseLeadFilterQuery(r.URL.Query())
+	// Leads list: don't force has_email unless explicitly requested
+	if r.URL.Query().Get("has_email") == "" {
+		f.HasEmail = false
+	}
+	if r.URL.Query().Get("exclude_suppressed") == "" {
+		f.ExcludeSuppressed = false
+	}
+	leads, err := s.Store.ListLeadsFiltered(u.IsAdmin(), u.ID, u.WorkspaceID, f)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	totalAll, _ := s.Store.CountLeadsFiltered(u.IsAdmin(), u.ID, u.WorkspaceID, models.LeadFilter{})
 	purgedN, _ := strconv.Atoi(r.URL.Query().Get("purged"))
 	s.render(w, "leads.html", map[string]any{
 		"Leads": leads, "Nav": "leads", "User": u,
-		"LeadCount": len(leads),
+		"LeadCount": len(leads), "TotalAll": totalAll,
+		"Filter":    f, "FilterActive": filterActive(f),
+		"Categories":   s.Store.DistinctLeadValues(u.IsAdmin(), u.ID, u.WorkspaceID, "category"),
+		"Sources":      s.Store.DistinctLeadValues(u.IsAdmin(), u.ID, u.WorkspaceID, "source"),
+		"EnrichStatuses": s.Store.DistinctLeadValues(u.IsAdmin(), u.ID, u.WorkspaceID, "enrichment_status"),
 		"Purged":    r.URL.Query().Get("purged") != "",
 		"PurgedN":   purgedN,
 		"Imported":  r.URL.Query().Get("imported") == "1",
 		"ImportedN": r.URL.Query().Get("n"),
+		"SavedAudience": r.URL.Query().Get("saved") == "1",
 	})
 }
 
@@ -533,23 +550,31 @@ func (s *Server) campaignsGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	leads, _ := s.Store.ListLeads(u.IsAdmin(), u.ID)
+	audiences, _ := s.Store.ListAudiences(u.IsAdmin(), u.ID, u.WorkspaceID)
 	type campView struct {
 		models.Campaign
-		Steps []models.SequenceStep
+		Steps         []models.SequenceStep
+		EnrolledCount int
 	}
 	var views []campView
 	for _, c := range camps {
 		steps, _ := s.Store.ListSteps(c.ID)
-		views = append(views, campView{Campaign: c, Steps: steps})
+		views = append(views, campView{
+			Campaign: c, Steps: steps,
+			EnrolledCount: s.Store.CountCampaignEnrolled(c.ID),
+		})
 	}
 	seeded := r.URL.Query().Get("seeded") == "1"
 	seedLeads, _ := strconv.Atoi(r.URL.Query().Get("leads"))
 	seedTemplates, _ := strconv.Atoi(r.URL.Query().Get("templates"))
 	seedCampaigns, _ := strconv.Atoi(r.URL.Query().Get("campaigns"))
 	s.render(w, "campaigns.html", map[string]any{
-		"Campaigns": views, "Leads": leads, "Nav": "campaigns", "User": u,
+		"Campaigns": views, "Leads": leads, "Audiences": audiences, "Nav": "campaigns", "User": u,
 		"Seeded": seeded, "SeedLeads": seedLeads, "SeedTemplates": seedTemplates, "SeedCampaigns": seedCampaigns,
-		"CampaignCount": len(views),
+		"CampaignCount": len(views), "AudienceCount": len(audiences),
+		"Enrolled": r.URL.Query().Get("enrolled") != "",
+		"EnrollN":  r.URL.Query().Get("enrolled"),
+		"SkipN":    r.URL.Query().Get("skipped"),
 	})
 }
 

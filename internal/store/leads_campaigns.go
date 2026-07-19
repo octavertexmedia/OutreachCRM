@@ -8,31 +8,7 @@ import (
 )
 
 func (s *Store) ListLeads(admin bool, ownerID int64) ([]models.Lead, error) {
-	q := `SELECT id, COALESCE(owner_id,0), COALESCE(workspace_id,1), name, website, phone, email, google_rating, category, issues_json,
-		premium_score, COALESCE(confidence,0), COALESCE(enrichment_cost,0), enrichment_status, notes, consent_at, COALESCE(consent_source,''),
-		COALESCE(source,'manual'), COALESCE(company,''), COALESCE(title,''), COALESCE(draft_subject,''), COALESCE(draft_body,''),
-		COALESCE(email_bounce_prob,-1), COALESCE(email_validation,''),
-		created_at, updated_at FROM leads WHERE 1=1`
-	var args []any
-	if !admin {
-		q += ` AND owner_id=?`
-		args = append(args, ownerID)
-	}
-	q += ` ORDER BY id DESC`
-	rows, err := s.db.Query(q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []models.Lead
-	for rows.Next() {
-		l, err := scanLead(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, l)
-	}
-	return out, rows.Err()
+	return s.ListLeadsFiltered(admin, ownerID, 0, models.LeadFilter{})
 }
 
 func scanLead(row scannable) (models.Lead, error) {

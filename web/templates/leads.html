@@ -14,9 +14,10 @@
   <div class="page-hero">
     <div>
       <h1>Leads</h1>
-      <p class="sub" style="margin-bottom:0">Import real ICP, enrich, draft — then enroll into a campaign.</p>
+      <p class="sub" style="margin-bottom:0">Import real ICP, enrich, draft — save a filtered audience, then enroll into a campaign.</p>
     </div>
     <div class="row-actions">
+      <a class="topbar-link" href="/audiences" style="border-color:var(--border)">Audiences</a>
       <a class="topbar-link" href="/campaigns" style="border-color:var(--border)">Campaigns</a>
       <a class="topbar-link" href="/static/ovm-manufacturing-icp.csv" style="border-color:var(--border)">CSV template</a>
       <form method="post" action="/leads/enrich-all" style="margin:0">
@@ -29,6 +30,59 @@
   <div class="flash flash-ok" role="status">Imported {{.ImportedN}} lead(s).</div>
   {{else if .Purged}}
   <div class="flash flash-ok" role="status">Removed {{.PurgedN}} dummy lead(s).</div>
+  {{else if .SavedAudience}}
+  <div class="flash flash-ok" role="status">Audience saved from current filters.</div>
+  {{end}}
+
+  {{if gt .TotalAll 0}}
+  <div class="panel aud-filter-panel">
+    <form method="get" action="/leads" class="aud-filter-form" id="leads-filter">
+      <div class="aud-filters">
+        <label>Category
+          <input name="categories" list="lead-cat-list" value="{{join .Filter.Categories ", "}}" placeholder="comma-sep">
+        </label>
+        <label>Source
+          <input name="sources" list="lead-src-list" value="{{join .Filter.Sources ", "}}" placeholder="csv, list name">
+        </label>
+        <label>Enrichment
+          <input name="enrichment_statuses" list="lead-st-list" value="{{join .Filter.EnrichmentStatuses ", "}}">
+        </label>
+        <label>Company<input name="company_contains" value="{{.Filter.CompanyContains}}"></label>
+        <label>Search<input name="q" value="{{.Filter.Q}}" placeholder="name / email"></label>
+        <label>Min premium<input name="min_premium" type="number" min="0" value="{{.Filter.MinPremium}}"></label>
+        <label class="check-label"><span>Has email</span>
+          <input type="checkbox" name="has_email" value="1" {{if .Filter.HasEmail}}checked{{end}}>
+        </label>
+        <label class="check-label"><span>Hide suppressed</span>
+          <input type="checkbox" name="exclude_suppressed" value="1" {{if .Filter.ExcludeSuppressed}}checked{{end}}>
+        </label>
+      </div>
+      <div class="row-actions" style="margin-top:0.75rem">
+        <button type="submit">Apply filters</button>
+        {{if .FilterActive}}<a class="topbar-link" href="/leads" style="border-color:var(--border)">Clear</a>{{end}}
+      </div>
+    </form>
+    <form method="post" action="/audiences" class="aud-save-form" style="margin-top:0.85rem;padding-top:0.85rem;border-top:1px solid var(--border-soft)">
+      <input type="hidden" name="categories" value="{{join .Filter.Categories ", "}}">
+      <input type="hidden" name="sources" value="{{join .Filter.Sources ", "}}">
+      <input type="hidden" name="enrichment_statuses" value="{{join .Filter.EnrichmentStatuses ", "}}">
+      <input type="hidden" name="company_contains" value="{{.Filter.CompanyContains}}">
+      <input type="hidden" name="q" value="{{.Filter.Q}}">
+      <input type="hidden" name="min_premium" value="{{.Filter.MinPremium}}">
+      {{if .Filter.HasEmail}}<input type="hidden" name="has_email" value="1">{{end}}
+      <input type="hidden" name="exclude_suppressed" value="{{if .Filter.ExcludeSuppressed}}1{{else}}0{{end}}">
+      <div class="inline">
+        <label style="flex:1">Save as audience
+          <input name="name" required placeholder="Name this list…" value="">
+        </label>
+        <button type="submit">Save audience</button>
+      </div>
+      <p class="muted" style="margin:0.45rem 0 0;font-size:0.8rem">Uses the filters above (apply first). Freezes matching members for campaign enroll.</p>
+    </form>
+    <datalist id="lead-cat-list">{{range .Categories}}<option value="{{.}}">{{end}}</datalist>
+    <datalist id="lead-src-list">{{range .Sources}}<option value="{{.}}">{{end}}</datalist>
+    <datalist id="lead-st-list">{{range .EnrichStatuses}}<option value="{{.}}">{{end}}</datalist>
+  </div>
   {{end}}
 
   {{if eq .LeadCount 0}}
@@ -67,12 +121,15 @@
     </form>
   </details>
 
-  {{if gt .LeadCount 0}}
+  {{if or (gt .LeadCount 0) .FilterActive}}
   <div class="panel camp-list">
     <div class="camp-list-head">
       <h2>Your leads</h2>
-      <span class="muted">{{.LeadCount}} total</span>
+      <span class="muted">{{.LeadCount}} shown{{if .FilterActive}} · filtered{{else}} · {{.TotalAll}} total{{end}}</span>
     </div>
+    {{if eq .LeadCount 0}}
+    <p class="muted">No leads match these filters.</p>
+    {{else}}
     <div style="overflow-x:auto">
       <table class="leads-table">
         <thead>
@@ -90,6 +147,7 @@
         </tbody>
       </table>
     </div>
+    {{end}}
   </div>
   {{end}}
 

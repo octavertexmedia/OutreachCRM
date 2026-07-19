@@ -1,0 +1,10 @@
+<div class="aud-preview-inner">
+  <strong>{{.Count}}</strong> lead{{if ne .Count 1}}s{{end}} match
+  {{if gt (len .Sample) 0}}
+  <ul class="aud-preview-list">
+    {{range .Sample}}
+    <li>{{.Name}}{{if .Company}} · {{.Company}}{{end}} <span class="muted">{{.Email}}</span></li>
+    {{end}}
+  </ul>
+  {{end}}
+</div>

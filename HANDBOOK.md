@@ -101,6 +101,7 @@ Dashboard shows the live funnel for steps 1–6.
 
 ## 8. Changelog
 
+- 2026-07-19 — Audiences: saved lead filters (category/source/enrichment/company/email) with member snapshot, live preview, bulk enroll into campaigns; filter bar + “Save as audience” on `/leads`; primary campaign enroll path.
 - 2026-07-19 — Dashboard business snapshot: KPI strip + pipeline funnel, D3 world bubbles (TLD→country), campaign treemap & activity bars, prev-vs-new leads area, category donut, ICP word cloud, reply intents; JSON at `GET /api/dashboard/snapshot`.
 - 2026-07-19 — Search categories: All / Leads / Campaigns / Email / Inbox / Queue / Templates / Accounts, plus field chips (name, email, phone, website, company, subject, notes).
 - 2026-07-19 — Search page uses `app-body` appshell (sidebar/topbar/inspector) like other console pages.

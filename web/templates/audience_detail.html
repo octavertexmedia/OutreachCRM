@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Audience.Name}} · Audience · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body class="app-body">
+  {{template "nav" .}}
+
+  <div class="page-hero">
+    <div>
+      <h1>{{.Audience.Name}}</h1>
+      <p class="sub" style="margin-bottom:0">
+        {{.Audience.MemberCount}} frozen members
+        · <span class="muted">{{.LiveCount}} match live filters now</span>
+      </p>
+    </div>
+    <div class="row-actions">
+      <a class="topbar-link" href="/audiences" style="border-color:var(--border)">All audiences</a>
+      <a class="topbar-link" href="/campaigns" style="border-color:var(--border)">Campaigns</a>
+    </div>
+  </div>
+
+  {{if .Updated}}
+  <div class="flash flash-ok" role="status">Filters saved and members refreshed{{if .Refreshed}} ({{.Refreshed}}){{end}}.</div>
+  {{else if .Refreshed}}
+  <div class="flash flash-ok" role="status">Members refreshed — {{.Refreshed}} leads.</div>
+  {{else if .Enrolled}}
+  <div class="flash flash-ok" role="status">Enrolled {{.EnrollN}} into campaign · skipped {{.SkipN}}.</div>
+  {{end}}
+
+  <div class="dash-grid-2">
+    <section class="panel">
+      <h2 class="dash-card-title">Filters</h2>
+      <form method="post" action="/audiences/{{.Audience.ID}}" class="aud-filter-form"
+            hx-get="/api/audiences/preview"
+            hx-trigger="change delay:200ms, keyup changed delay:400ms from:input"
+            hx-include="this"
+            hx-target="#aud-preview-detail"
+            hx-swap="innerHTML">
+        <div class="inline">
+          <label>Name<input name="name" required value="{{.Audience.Name}}"></label>
+          <label>Description<input name="description" value="{{.Audience.Description}}"></label>
+        </div>
+        <div class="aud-filters">
+          <label>Categories<input name="categories" list="cat-list" value="{{.CatCSV}}"></label>
+          <label>Sources<input name="sources" list="src-list" value="{{.SrcCSV}}"></label>
+          <label>Enrichment<input name="enrichment_statuses" list="st-list" value="{{.StCSV}}"></label>
+          <label>Company contains<input name="company_contains" value="{{.Audience.Filter.CompanyContains}}"></label>
+          <label>Search<input name="q" value="{{.Audience.Filter.Q}}"></label>
+          <label>Min premium<input name="min_premium" type="number" min="0" value="{{.Audience.Filter.MinPremium}}"></label>
+          <label>Exclude enrolled in
+            <select name="exclude_enrolled_in">
+              <option value="0">— none —</option>
+              {{range .Campaigns}}
+              <option value="{{.ID}}" {{if eq $.Audience.Filter.ExcludeEnrolledIn .ID}}selected{{end}}>{{.Name}}</option>
+              {{end}}
+            </select>
+          </label>
+          <label class="check-label"><span>Has email</span>
+            <input type="checkbox" name="has_email" value="1" {{if .Audience.Filter.HasEmail}}checked{{end}}>
+          </label>
+          <input type="hidden" name="exclude_suppressed" value="{{if .Audience.Filter.ExcludeSuppressed}}1{{else}}0{{end}}">
+          <label class="check-label"><span>Exclude suppressed</span>
+            <input type="checkbox" {{if .Audience.Filter.ExcludeSuppressed}}checked{{end}}
+              onchange="this.form.exclude_suppressed.value=this.checked?'1':'0'">
+          </label>
+        </div>
+        <div id="aud-preview-detail" class="aud-preview-box muted">Live preview updates as you edit.</div>
+        <div class="row-actions" style="margin-top:0.85rem">
+          <button type="submit">Save &amp; refresh members</button>
+          <button formaction="/audiences/{{.Audience.ID}}/refresh" formmethod="post" class="secondary" type="submit">Refresh only</button>
+        </div>
+      </form>
+      <datalist id="cat-list">{{range .Categories}}<option value="{{.}}">{{end}}</datalist>
+      <datalist id="src-list">{{range .Sources}}<option value="{{.}}">{{end}}</datalist>
+      <datalist id="st-list">{{range .EnrichStatuses}}<option value="{{.}}">{{end}}</datalist>
+    </section>
+
+    <section class="panel">
+      <h2 class="dash-card-title">Enroll into campaign</h2>
+      <p class="muted" style="margin:0 0 0.85rem;font-size:0.88rem">Uses the frozen member snapshot ({{.Audience.MemberCount}} leads). Refresh first if filters changed.</p>
+      {{if eq .Audience.MemberCount 0}}
+      <p class="muted">No members yet — save filters or refresh.</p>
+      {{else if eq (len .Campaigns) 0}}
+      <p class="muted">Create a campaign first, then enroll this audience.</p>
+      <a class="btn" href="/campaigns">Go to campaigns</a>
+      {{else}}
+      <form method="post" action="/audiences/{{.Audience.ID}}/enroll" class="camp-enroll">
+        <label>Campaign
+          <select name="campaign_id" required>
+            <option value="">Select…</option>
+            {{range .Campaigns}}
+            <option value="{{.ID}}">{{.Name}} · {{.Status}}</option>
+            {{end}}
+          </select>
+        </label>
+        <button type="submit">Enroll audience</button>
+      </form>
+      {{end}}
+
+      <form method="post" action="/audiences/{{.Audience.ID}}/delete" style="margin-top:1.5rem"
+            onsubmit="return confirm('Delete this audience? Campaign enrollments are kept.');">
+        <button type="submit" class="secondary">Delete audience</button>
+      </form>
+    </section>
+  </div>
+
+  <div class="panel camp-list">
+    <div class="camp-list-head">
+      <h2>Frozen members</h2>
+      <span class="muted">showing up to 100</span>
+    </div>
+    {{if eq (len .Members) 0}}
+    <p class="muted">Empty snapshot.</p>
+    {{else}}
+    <div style="overflow-x:auto">
+      <table class="leads-table">
+        <thead>
+          <tr><th>Lead</th><th>Category</th><th>Source</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          {{range .Members}}
+          <tr>
+            <td>
+              <strong>{{.Name}}</strong>
+              <div class="muted" style="font-size:0.82rem">{{.Email}}{{if .Company}} · {{.Company}}{{end}}</div>
+            </td>
+            <td>{{if .Category}}{{.Category}}{{else}}—{{end}}</td>
+            <td>{{.Source}}</td>
+            <td><span class="badge {{badgeClass .EnrichmentStatus}}">{{.EnrichmentStatus}}</span></td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{end}}
+  </div>
+
+  {{template "foot" .}}
+</body>
+</html>

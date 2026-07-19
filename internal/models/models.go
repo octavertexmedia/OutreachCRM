@@ -100,6 +100,40 @@ type Campaign struct {
 	CreatedAt       time.Time
 }
 
+// LeadFilter is AND-combined criteria for listing leads / building audiences.
+type LeadFilter struct {
+	Categories          []string `json:"categories,omitempty"`
+	Sources             []string `json:"sources,omitempty"`
+	EnrichmentStatuses  []string `json:"enrichmentStatuses,omitempty"`
+	MinPremium          int      `json:"minPremium,omitempty"`
+	HasEmail            bool     `json:"hasEmail,omitempty"`
+	ExcludeSuppressed   bool     `json:"excludeSuppressed,omitempty"`
+	CompanyContains     string   `json:"companyContains,omitempty"`
+	Q                   string   `json:"q,omitempty"` // name / email / company LIKE
+	ExcludeEnrolledIn   int64    `json:"excludeEnrolledIn,omitempty"`
+}
+
+// Audience is a named saved filter with a member snapshot for enroll.
+type Audience struct {
+	ID          int64
+	WorkspaceID int64
+	OwnerID     int64
+	Name        string
+	Description string
+	Filter      LeadFilter
+	FilterJSON  string
+	MemberCount int
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+// AudienceEnrollResult summarizes bulk enrollment from an audience.
+type AudienceEnrollResult struct {
+	Enrolled int
+	Skipped  int
+	Errors   []string
+}
+
 type EmailAccount struct {
 	ID               int64
 	OwnerID          int64
