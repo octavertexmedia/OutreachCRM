@@ -59,7 +59,13 @@ func New(st *store.Store, a *auth.Manager, box *crypto.Box, oa *oauth.Managers, 
 			}
 			return template.JS(b)
 		},
-		"join":      strings.Join,
+		"join": strings.Join,
+		"pct": func(n, d int) int {
+			if d <= 0 {
+				return 0
+			}
+			return (n * 100) / d
+		},
 		"kindLabel": search.KindLabel,
 		"badgeClass": func(status string) string {
 			switch status {

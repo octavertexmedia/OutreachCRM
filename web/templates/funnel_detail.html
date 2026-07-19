@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Run.AudienceName}} · Funnel · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="app-body">
+  {{template "nav" .}}
+
+  <div class="page-hero">
+    <div>
+      <h1>{{.Run.AudienceName}}</h1>
+      <p class="sub" style="margin-bottom:0">
+        Running funnel: <strong>{{.Run.CampaignName}}</strong>
+        <span class="muted"> · audience #{{.Run.AudienceID}} → campaign #{{.Run.CampaignID}}</span>
+      </p>
+    </div>
+    <div class="row-actions">
+      <a class="topbar-link" href="/funnels" style="border-color:var(--border)">All funnels</a>
+      <a class="topbar-link" href="/audiences/{{.Run.AudienceID}}" style="border-color:var(--border)">Audience</a>
+      <a class="topbar-link" href="/queue" style="border-color:var(--border)">Queue</a>
+    </div>
+  </div>
+
+  {{if .Enrolled}}
+  <div class="flash flash-ok" role="status">Enrolled {{.EnrollN}} into this funnel · skipped {{.SkipN}}.</div>
+  {{end}}
+
+  <div class="funnel-strip funnel-strip-lg panel">
+    <div class="funnel-stage"><span class="n">{{.Run.Funnel.Members}}</span><span class="l">In funnel</span></div>
+    <div class="funnel-stage"><span class="n">{{.Run.Funnel.Queued}}</span><span class="l">Queued</span></div>
+    <div class="funnel-stage"><span class="n">{{.Run.Funnel.Sent}}</span><span class="l">Sent</span></div>
+    <div class="funnel-stage"><span class="n">{{.Run.Funnel.Replied}}</span><span class="l">Replied</span></div>
+    <div class="funnel-stage"><span class="n">{{.Run.Funnel.Positive}}</span><span class="l">Positive</span></div>
+    <div class="funnel-stage"><span class="n">{{.Run.Funnel.Unsubscribed}}</span><span class="l">Unsub</span></div>
+    <div class="funnel-stage"><span class="n">{{.Run.Funnel.Completed}}</span><span class="l">Completed</span></div>
+  </div>
+
+  <div class="dash-grid-2">
+    <section class="panel">
+      <h2 class="dash-card-title">Sequence (this funnel)</h2>
+      <p class="muted" style="margin:0 0 0.75rem;font-size:0.85rem">Cadence from the campaign this audience was enrolled into.</p>
+      <table class="camp-steps">
+        <thead><tr><th>#</th><th>Wait</th><th>Subject</th></tr></thead>
+        <tbody>
+          {{range .Steps}}
+          <tr>
+            <td>{{.StepOrder}}</td>
+            <td>{{.DelayDays}}d</td>
+            <td><div class="step-subject">{{.SubjectTemplate}}</div></td>
+          </tr>
+          {{else}}
+          <tr><td colspan="3" class="muted">No steps.</td></tr>
+          {{end}}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2 class="dash-card-title">Where leads sit</h2>
+      <p class="muted" style="margin:0 0 0.75rem;font-size:0.85rem">Current step for members enrolled from this audience.</p>
+      {{if eq (len .Run.Funnel.ByStep) 0}}
+      <p class="muted">No step distribution yet.</p>
+      {{else}}
+      <div class="funnel-bars">
+        {{range .Run.Funnel.ByStep}}
+        <div class="funnel-bar-row">
+          <span class="funnel-bar-label">{{.Name}}</span>
+          <div class="funnel-bar-track">
+            <div class="funnel-bar-fill" style="width:{{pct .Count $.Run.Funnel.Members}}%"></div>
+          </div>
+          <strong>{{.Count}}</strong>
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+      <p class="muted" style="margin:1rem 0 0;font-size:0.82rem">
+        Lifetime enroll events: {{.Run.Enrolled}} · skipped {{.Run.Skipped}} · status {{.Run.Status}}
+      </p>
+    </section>
+  </div>
+
+  {{template "foot" .}}
+</body>
+</html>

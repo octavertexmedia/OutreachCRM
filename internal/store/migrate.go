@@ -149,6 +149,9 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 	{6, `
 -- audiences: saved lead filters + member snapshots
 `},
+	{7, `
+-- campaign funnel tracker: audience × campaign runs
+`},
 }
 
 func (s *Store) migrate() error {
@@ -198,6 +201,12 @@ func (s *Store) migrate() error {
 		}
 		if m.version == 6 {
 			if err := upgradeAudiences(tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("migration %d: %w", m.version, err)
+			}
+		}
+		if m.version == 7 {
+			if err := upgradeCampaignFunnels(tx); err != nil {
 				_ = tx.Rollback()
 				return fmt.Errorf("migration %d: %w", m.version, err)
 			}
@@ -437,5 +446,31 @@ CREATE INDEX IF NOT EXISTS idx_audiences_workspace ON audiences(workspace_id);
 CREATE INDEX IF NOT EXISTS idx_audience_members_lead ON audience_members(lead_id);
 `)
 	return err
+}
+
+func upgradeCampaignFunnels(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+CREATE TABLE IF NOT EXISTS campaign_audience_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL DEFAULT 1,
+  campaign_id INTEGER NOT NULL,
+  audience_id INTEGER NOT NULL,
+  enrolled INTEGER NOT NULL DEFAULT 0,
+  skipped INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(campaign_id, audience_id)
+);
+CREATE INDEX IF NOT EXISTS idx_car_workspace ON campaign_audience_runs(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_car_audience ON campaign_audience_runs(audience_id);
+CREATE INDEX IF NOT EXISTS idx_car_campaign ON campaign_audience_runs(campaign_id);
+`)
+	if err != nil {
+		return err
+	}
+	_, _ = tx.Exec(`ALTER TABLE campaign_leads ADD COLUMN audience_id INTEGER NOT NULL DEFAULT 0`)
+	_, _ = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_cl_audience ON campaign_leads(audience_id)`)
+	return nil
 }
 

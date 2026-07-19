@@ -329,9 +329,13 @@ func (s *Store) CountCampaignEnrolled(campaignID int64) int {
 	return n
 }
 
-// EnrollAudience enrolls current audience_members into a campaign.
+// EnrollAudience enrolls current audience_members into a campaign and records the funnel run.
 func (s *Store) EnrollAudience(campaignID, audienceID int64) (models.AudienceEnrollResult, error) {
 	var res models.AudienceEnrollResult
+	aud, err := s.GetAudience(audienceID)
+	if err != nil {
+		return res, err
+	}
 	ids, err := s.ListAudienceMemberIDs(audienceID)
 	if err != nil {
 		return res, err
@@ -365,7 +369,7 @@ func (s *Store) EnrollAudience(campaignID, audienceID int64) (models.AudienceEnr
 			res.Skipped++
 			continue
 		}
-		if err := s.EnrollLead(campaignID, leadID); err != nil {
+		if err := s.EnrollLeadFromAudience(campaignID, leadID, audienceID); err != nil {
 			res.Skipped++
 			if len(res.Errors) < 20 {
 				res.Errors = append(res.Errors, fmt.Sprintf("%s: %v", lead.Email, err))
@@ -373,6 +377,10 @@ func (s *Store) EnrollAudience(campaignID, audienceID int64) (models.AudienceEnr
 			continue
 		}
 		res.Enrolled++
+	}
+	runID, err := s.RecordAudienceCampaignRun(aud.WorkspaceID, campaignID, audienceID, res.Enrolled, res.Skipped)
+	if err == nil {
+		res.RunID = runID
 	}
 	return res, nil
 }

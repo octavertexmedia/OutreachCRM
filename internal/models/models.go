@@ -132,6 +132,35 @@ type AudienceEnrollResult struct {
 	Enrolled int
 	Skipped  int
 	Errors   []string
+	RunID    int64
+}
+
+// CampaignAudienceRun links a selected audience to the campaign funnel it runs through.
+type CampaignAudienceRun struct {
+	ID           int64
+	WorkspaceID  int64
+	CampaignID   int64
+	AudienceID   int64
+	CampaignName string
+	AudienceName string
+	Enrolled     int
+	Skipped      int
+	Status       string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	Funnel       CampaignFunnelStats
+}
+
+// CampaignFunnelStats is live progress for an audience inside one campaign sequence.
+type CampaignFunnelStats struct {
+	Members      int // enrolled via this audience into the campaign
+	Queued       int // have scheduled/sending messages
+	Sent         int // at least one sent message
+	Replied      int
+	Positive     int
+	Unsubscribed int
+	Completed    int
+	ByStep       []NamedCount // current_step distribution
 }
 
 type EmailAccount struct {

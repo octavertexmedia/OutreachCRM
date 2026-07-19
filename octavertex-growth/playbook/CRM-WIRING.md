@@ -21,7 +21,9 @@ name,email,company,title,website,phone,source,notes
 ```
 
 4. **Leads → Bulk CSV import** → upload.
-5. Enroll into **`OVM · Manufacturing Lead Platform (₹1.25L+)`** (daily limit 20).
+5. **Leads → filter** (e.g. `source=icp-mfg-mumbai`) → **Save as audience**.
+6. Enroll that audience into **`OVM · Manufacturing Lead Platform (₹1.25L+)`** (daily limit 20).
+7. Open **Funnels** — tracker shows this audience running that campaign sequence (queued → sent → replied → positive).
 
 ### Column guide
 
@@ -47,7 +49,8 @@ Legacy files `name,email,website,phone` (no header) still work.
 | 10 follow-ups | Sequence handles email cadence |
 | Replies → discovery | Inbox / HITL → book Calendly |
 | Proposals | [PROPOSAL-TEMPLATE.md](PROPOSAL-TEMPLATE.md) |
-| Scoreboard | `/analytics` vs [4-CLIENTS-PER-MONTH.md](4-CLIENTS-PER-MONTH.md) §9 |
+| Audience → campaign funnel | `/funnels` (which sequence the audience is running + stage counts) |
+| Scoreboard | `/analytics` + `/funnels` vs [4-CLIENTS-PER-MONTH.md](4-CLIENTS-PER-MONTH.md) §9 |
 
 ## Offer discipline
 

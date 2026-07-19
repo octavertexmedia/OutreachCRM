@@ -110,6 +110,29 @@
     </section>
   </div>
 
+  {{if gt (len .FunnelRuns) 0}}
+  <div class="panel camp-list">
+    <div class="camp-list-head">
+      <h2>Funnels this audience is running</h2>
+      <a class="topbar-link" href="/funnels" style="border-color:var(--border)">All funnels</a>
+    </div>
+    {{range .FunnelRuns}}
+    <article class="camp-card">
+      <div class="camp-card-top">
+        <div class="camp-card-title">
+          <h3><a href="/funnels/{{.ID}}">{{.CampaignName}}</a></h3>
+          <span class="badge {{badgeClass .Status}}">{{.Status}}</span>
+        </div>
+        <p class="camp-meta">{{.Funnel.Members}} in funnel · {{.Funnel.Sent}} sent · {{.Funnel.Positive}} positive</p>
+      </div>
+      <div class="row-actions">
+        <a class="topbar-link" href="/funnels/{{.ID}}" style="border-color:var(--border)">Open tracker</a>
+      </div>
+    </article>
+    {{end}}
+  </div>
+  {{end}}
+
   <div class="panel camp-list">
     <div class="camp-list-head">
       <h2>Frozen members</h2>

@@ -301,6 +301,10 @@ func (s *Store) NextStepOrder(campaignID int64) (int, error) {
 }
 
 func (s *Store) EnrollLead(campaignID, leadID int64) error {
+	return s.EnrollLeadFromAudience(campaignID, leadID, 0)
+}
+
+func (s *Store) EnrollLeadFromAudience(campaignID, leadID, audienceID int64) error {
 	lead, err := s.GetLead(leadID)
 	if err != nil {
 		return err
@@ -320,9 +324,13 @@ func (s *Store) EnrollLead(campaignID, leadID int64) error {
 		return fmt.Errorf("campaign has no sequence steps")
 	}
 	t := now()
-	res, err := s.db.Exec(`INSERT INTO campaign_leads(campaign_id, lead_id, current_step, status, enrolled_at, next_send_at)
-		VALUES(?,?,0,'active',?,?) ON CONFLICT(campaign_id, lead_id) DO UPDATE SET status='active', next_send_at=excluded.next_send_at`,
-		campaignID, leadID, fmtTime(t), fmtTime(t))
+	res, err := s.db.Exec(`INSERT INTO campaign_leads(campaign_id, lead_id, current_step, status, enrolled_at, next_send_at, audience_id)
+		VALUES(?,?,0,'active',?,?,?)
+		ON CONFLICT(campaign_id, lead_id) DO UPDATE SET
+			status='active',
+			next_send_at=excluded.next_send_at,
+			audience_id=CASE WHEN excluded.audience_id>0 THEN excluded.audience_id ELSE campaign_leads.audience_id END`,
+		campaignID, leadID, fmtTime(t), fmtTime(t), audienceID)
 	if err != nil {
 		return err
 	}

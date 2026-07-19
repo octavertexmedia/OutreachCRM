@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Funnels · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="app-body">
+  {{template "nav" .}}
+
+  <div class="page-hero">
+    <div>
+      <h1>Campaign funnels</h1>
+      <p class="sub" style="margin-bottom:0">Track each selected audience through the campaign sequence it was enrolled into — which funnel is running, and where leads sit.</p>
+    </div>
+    <div class="row-actions">
+      <a class="topbar-link" href="/audiences" style="border-color:var(--border)">Audiences</a>
+      <a class="topbar-link" href="/campaigns" style="border-color:var(--border)">Campaigns</a>
+    </div>
+  </div>
+
+  {{if eq .RunCount 0}}
+  <div class="panel empty-state">
+    <h2>No funnel runs yet</h2>
+    <p class="muted">Build an audience, enroll it into a campaign (e.g. <strong>OVM · Manufacturing Lead Platform</strong>) — a funnel tracker opens automatically.</p>
+    <div class="row-actions" style="justify-content:center;margin-top:1rem">
+      <a class="btn" href="/audiences">Go to audiences</a>
+    </div>
+  </div>
+  {{else}}
+  <div class="panel camp-list">
+    <div class="camp-list-head">
+      <h2>Active &amp; recent runs</h2>
+      <span class="muted">{{.RunCount}} in {{if .WorkspaceName}}{{.WorkspaceName}}{{else}}workspace{{end}}</span>
+    </div>
+    {{range .Runs}}
+    <article class="camp-card">
+      <div class="camp-card-top">
+        <div class="camp-card-title">
+          <h3><a href="/funnels/{{.ID}}">{{.AudienceName}}</a></h3>
+          <span class="badge {{badgeClass .Status}}">{{.Status}}</span>
+        </div>
+        <p class="camp-meta">
+          Funnel: <strong>{{.CampaignName}}</strong>
+          · enrolled {{.Enrolled}}{{if gt .Skipped 0}} · skipped {{.Skipped}}{{end}}
+          · updated {{.UpdatedAt.Format "2006-01-02 15:04"}}
+        </p>
+      </div>
+      <div class="funnel-strip">
+        <div class="funnel-stage"><span class="n">{{.Funnel.Members}}</span><span class="l">In funnel</span></div>
+        <div class="funnel-stage"><span class="n">{{.Funnel.Queued}}</span><span class="l">Queued</span></div>
+        <div class="funnel-stage"><span class="n">{{.Funnel.Sent}}</span><span class="l">Sent</span></div>
+        <div class="funnel-stage"><span class="n">{{.Funnel.Replied}}</span><span class="l">Replied</span></div>
+        <div class="funnel-stage"><span class="n">{{.Funnel.Positive}}</span><span class="l">Positive</span></div>
+        <div class="funnel-stage"><span class="n">{{.Funnel.Completed}}</span><span class="l">Done</span></div>
+      </div>
+      <div class="row-actions">
+        <a class="topbar-link" href="/funnels/{{.ID}}" style="border-color:var(--border)">Open tracker</a>
+        <a class="topbar-link" href="/audiences/{{.AudienceID}}" style="border-color:var(--border)">Audience</a>
+        <a class="topbar-link" href="/campaigns" style="border-color:var(--border)">Campaigns</a>
+      </div>
+    </article>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{template "foot" .}}
+</body>
+</html>
