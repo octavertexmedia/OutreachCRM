@@ -20,7 +20,7 @@
       <form method="post" action="/leads/seed" style="margin:0"><button type="submit" class="secondary">Seed demo leads</button></form>
       <form method="post" action="/leads/enrich-all" style="margin:0"><button type="submit" class="secondary">Bulk enrich pending</button></form>
     </div>
-    <p class="muted" style="margin-top:-0.5rem;margin-bottom:1rem;">Playbooks: OVM fixed-price MVP (Discovery $2k / Starter $3,999 / Rush $5,499) + AI/e-com/growth ICPs from build-mvp &amp; services · RevNext hotel suite — campaigns IST 9–18.</p>
+    <p class="muted" style="margin-top:-0.5rem;margin-bottom:1rem;">Playbooks: <strong>OVM Manufacturing Lead Platform (₹1.25L+)</strong> · OVM fixed-price MVP (Discovery / Starter / Rush) · AI/e-com/growth · RevNext hotel suite — campaigns IST 9–18.</p>
 
     <div class="panel">
       <h2 style="margin-top:0;font-size:1.05rem;">Add lead</h2>
@@ -41,8 +41,13 @@
 
     <div class="panel">
       <h2 style="margin-top:0;font-size:1.05rem;">Bulk CSV import</h2>
+      <p class="muted" style="margin:0 0 0.75rem;font-size:0.88rem;">
+        Headers: <code>name,email,company,title,website,phone,source,notes</code>
+        · <a href="/static/ovm-manufacturing-icp.csv">Download OVM manufacturing ICP template</a>
+        · guide in <code>octavertex-growth/playbook/CRM-WIRING.md</code>
+      </p>
       <form method="post" action="/leads/import" enctype="multipart/form-data">
-        <label>CSV (name,email,website,phone)<input type="file" name="file" accept=".csv,text/csv" required></label>
+        <label>CSV file<input type="file" name="file" accept=".csv,text/csv" required></label>
         <button type="submit">Import</button>
       </form>
     </div>

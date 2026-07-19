@@ -146,7 +146,7 @@ func (w *Worker) process(ctx context.Context, msg models.OutboundMessage) error 
 			}
 		}
 	}
-	subject, body = writing.Personalize(subject, body, lead.Name)
+	subject, body = writing.PersonalizeLead(subject, body, lead)
 	if w.Auth != nil && w.PublicBaseURL != "" {
 		tok := w.Auth.SignUnsubscribe(msg.LeadID, msg.CampaignID)
 		body += "\n\n---\nUnsubscribe: " + w.PublicBaseURL + "/u/" + tok

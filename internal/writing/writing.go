@@ -77,11 +77,36 @@ func Expand(subject, body string) (string, string) {
 }
 
 func Personalize(subject, body, name string) (string, string) {
+	return PersonalizeLead(subject, body, models.Lead{Name: name})
+}
+
+// PersonalizeLead substitutes {{name}}, {{company}}, {{website}}, {{title}} then expands spintax.
+func PersonalizeLead(subject, body string, lead models.Lead) (string, string) {
+	name := strings.TrimSpace(lead.Name)
 	if name == "" {
 		name = "there"
 	}
-	subject = strings.ReplaceAll(subject, "{{name}}", name)
-	body = strings.ReplaceAll(body, "{{name}}", name)
+	company := strings.TrimSpace(lead.Company)
+	if company == "" {
+		company = name
+	}
+	website := strings.TrimSpace(lead.Website)
+	if website == "" {
+		website = "your site"
+	}
+	title := strings.TrimSpace(lead.Title)
+	if title == "" {
+		title = "there"
+	}
+	for _, pair := range [][2]string{
+		{"{{name}}", name},
+		{"{{company}}", company},
+		{"{{website}}", website},
+		{"{{title}}", title},
+	} {
+		subject = strings.ReplaceAll(subject, pair[0], pair[1])
+		body = strings.ReplaceAll(body, pair[0], pair[1])
+	}
 	return Expand(subject, body)
 }
 

@@ -204,6 +204,11 @@ func (s *Server) leadsImport(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 	rd := csv.NewReader(file)
 	rd.FieldsPerRecord = -1
+	rd.TrimLeadingSpace = true
+
+	// Header-aware: name,email,company,title,website,phone,source,notes
+	// Legacy positional: name,email,website,phone
+	var headers []string
 	n := 0
 	for {
 		rec, err := rd.Read()
@@ -213,23 +218,100 @@ func (s *Server) leadsImport(w http.ResponseWriter, r *http.Request) {
 		if err != nil || len(rec) < 2 {
 			continue
 		}
-		// name,email,website,phone
-		name, email := strings.TrimSpace(rec[0]), strings.TrimSpace(rec[1])
-		if strings.EqualFold(name, "name") {
+		if headers == nil {
+			if looksLikeCSVHeader(rec) {
+				headers = normalizeCSVHeaders(rec)
+				continue
+			}
+			headers = []string{"name", "email", "website", "phone"}
+		}
+		row := mapCSVRow(headers, rec)
+		name := strings.TrimSpace(row["name"])
+		email := strings.TrimSpace(row["email"])
+		if name == "" || email == "" {
 			continue
 		}
-		website, phone := "", ""
-		if len(rec) > 2 {
-			website = strings.TrimSpace(rec[2])
+		source := strings.TrimSpace(row["source"])
+		if source == "" {
+			source = "csv"
 		}
-		if len(rec) > 3 {
-			phone = strings.TrimSpace(rec[3])
-		}
-		_, _ = s.Store.CreateLead(models.Lead{OwnerID: u.ID, WorkspaceID: u.WorkspaceID, Name: name, Email: email, Website: website, Phone: phone, Source: "csv"})
+		_, _ = s.Store.CreateLead(models.Lead{
+			OwnerID: u.ID, WorkspaceID: u.WorkspaceID,
+			Name: name, Email: email,
+			Company: strings.TrimSpace(row["company"]),
+			Title:   strings.TrimSpace(row["title"]),
+			Website: strings.TrimSpace(row["website"]),
+			Phone:   strings.TrimSpace(row["phone"]),
+			Source:  source,
+			Notes:   strings.TrimSpace(row["notes"]),
+			EnrichmentStatus: "pending",
+		})
 		n++
 	}
 	s.Store.Audit(u.WorkspaceID, u.ID, "lead.import", "lead", "", fmt.Sprintf("count=%d", n))
 	http.Redirect(w, r, "/leads", http.StatusSeeOther)
+}
+
+func looksLikeCSVHeader(rec []string) bool {
+	if len(rec) == 0 {
+		return false
+	}
+	first := strings.ToLower(strings.TrimSpace(rec[0]))
+	if first == "name" || first == "full_name" || first == "contact" {
+		return true
+	}
+	for _, c := range rec {
+		switch strings.ToLower(strings.TrimSpace(c)) {
+		case "email", "company", "title", "website", "source", "notes":
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeCSVHeaders(rec []string) []string {
+	out := make([]string, len(rec))
+	for i, h := range rec {
+		h = strings.ToLower(strings.TrimSpace(h))
+		switch h {
+		case "full_name", "contact", "contact_name":
+			h = "name"
+		case "e-mail", "email_address":
+			h = "email"
+		case "web", "url", "site":
+			h = "website"
+		case "job_title", "role":
+			h = "title"
+		case "organisation", "organization", "org":
+			h = "company"
+		case "mobile", "tel":
+			h = "phone"
+		case "note", "trigger", "comments":
+			h = "notes"
+		case "tag", "list", "segment":
+			h = "source"
+		}
+		out[i] = h
+	}
+	return out
+}
+
+func mapCSVRow(headers, rec []string) map[string]string {
+	m := make(map[string]string, len(headers))
+	for i, h := range headers {
+		if i >= len(rec) || h == "" {
+			continue
+		}
+		m[h] = rec[i]
+	}
+	// Positional fallback when headerless legacy file used default headers
+	if _, ok := m["name"]; !ok && len(rec) > 0 {
+		m["name"] = rec[0]
+	}
+	if _, ok := m["email"]; !ok && len(rec) > 1 {
+		m["email"] = rec[1]
+	}
+	return m
 }
 
 func (s *Server) privacyExport(w http.ResponseWriter, r *http.Request) {

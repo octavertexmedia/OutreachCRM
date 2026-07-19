@@ -9,6 +9,7 @@ import (
 
 // SeedCompanyPlaybooks loads OctaVertex Media + RevNext selling playbooks:
 // email templates, multi-step campaigns, and ICP demo leads.
+// Includes OVM Manufacturing Lead Platform (octavertex-growth kit: ₹1.25L+).
 // Idempotent: skips campaigns/templates/leads that already exist by name/email.
 func (s *Store) SeedCompanyPlaybooks(ownerID, workspaceID int64) (leads, templates, campaigns int, err error) {
 	if workspaceID == 0 {
@@ -248,6 +249,74 @@ RevNext Hotels: property discovery, claim listing, OTA setup tools, metasearch/G
 {Want help claiming your listing?|Open to a listing + booking stack chat?}
 RevNext`),
 
+		// —— OVM Manufacturing / B2B (octavertex-growth kit) ——
+		mk("OVM · Mfg Lead Platform opener",
+			"{{company}} catalogue → quote flow",
+			`Hi {{name}},
+
+{I work with|We help} manufacturing and B2B companies that need more than a brochure site—
+typically a catalogue, quote/enquiry path, and basic CRM so leads don't die in WhatsApp.
+
+Recently we shipped a full platform for a Mumbai packaging supplier (CMS, QR catalogue,
+quote cart, SEO, production deploy).
+
+I took a look at {{website}} — {worth tightening the enquiry path|catalogue/quote flow looks thin}.
+
+Worth a 20-minute call this week to see if a Lead Generation Platform (usually ₹1.25L–₹2L,
+fixed scope) is relevant?
+
+https://www.octavertexmedia.com
+Manish · Octavertex Media`),
+
+		mk("OVM · Mfg case-led opener",
+			"How a packaging supplier runs catalogue + WhatsApp quotes online",
+			`Hi {{name}},
+
+Sharing a pattern we see with {manufacturing|packaging|B2B} companies:
+
+1. Buyers search Google / ask for catalogue on WhatsApp
+2. Sales sends PDFs or photos
+3. Follow-ups get lost—no CRM
+
+We built a system for Intellect Kraft-class packaging sales: live catalogue, mobile QR
+catalogue, quote cart, and CRM—plus SEO foundations.
+
+If {{company}} is planning a digital upgrade this quarter, happy to walk through what
+a scoped Lead Generation Platform looks like (architecture + ₹1.25L–₹2L investment bands).
+
+{Open this week?|Worth a 20-min call?}
+Manish · Octavertex Media · octavertexmedia.com`),
+
+		mk("OVM · Mfg follow-up Day 2",
+			"Re: Lead Generation Platform for {{company}}",
+			`Hi {{name}} — bumping this once. Happy to send a one-page outline of the Lead Generation
+Platform (deliverables + timeline) if easier than a call.
+
+Manish · Octavertex Media`),
+
+		mk("OVM · Mfg follow-up Day 5",
+			"{{name}} — timing on website / catalogue?",
+			`{{name}} — last note from me on this thread.
+
+If website/catalogue isn't a priority this quarter, totally fine—I'll check back next
+quarter. If it is, reply and we'll book 20 minutes.
+
+Manish · Octavertex Media`),
+
+		mk("OVM · Mfg follow-up Day 10",
+			"{{company}} — 5 SEO page ideas for manufacturers",
+			`{{name}} — related to {{company}}: many buyers search "{product|category} {city|India}".
+If useful, I can send 5 page ideas that usually help manufacturers show up for those queries.
+
+Manish · Octavertex Media`),
+
+		mk("OVM · Mfg follow-up Day 21",
+			"Honest teardown of {{website}}?",
+			`Circling back one last time. If you want an honest teardown of {{website}} (15 min),
+I'm happy to do it with no obligation.
+
+Manish · Octavertex Media · octavertexmedia.com`),
+
 		mk("OVM · Closing loop",
 			"{Closing the loop|Last note} — {{name}}",
 			`Hi {{name}},
@@ -277,6 +346,83 @@ RevNext`),
 
 func companyCampaignPacks(ownerID, workspaceID int64) []campaignPack {
 	return []campaignPack{
+		// octavertex-growth: ≥4 clients/mo · manufacturing & B2B India · ₹1.25L+ Lead Platform
+		{
+			Campaign: campBase(ownerID, workspaceID, "OVM · Manufacturing Lead Platform (₹1.25L+)", 20),
+			Steps: []models.SequenceStep{
+				{
+					DelayDays:       0,
+					SubjectTemplate: "{{company}} catalogue → quote flow",
+					BodySpintax: `Hi {{name}},
+
+{I work with|We help} manufacturing and B2B companies that need more than a brochure site—
+typically a catalogue, quote/enquiry path, and basic CRM so leads don't die in WhatsApp.
+
+Recently we shipped a full platform for a Mumbai packaging supplier (CMS, QR catalogue,
+quote cart, SEO, production deploy).
+
+I took a look at {{website}} — {worth tightening the enquiry path|catalogue/quote flow looks thin}.
+
+Worth a 20-minute call this week to see if a Lead Generation Platform (usually ₹1.25L–₹2L,
+fixed scope) is relevant?
+
+https://www.octavertexmedia.com
+Manish · Octavertex Media`,
+					VariantBSubject: "How a packaging supplier runs catalogue + WhatsApp quotes online",
+					VariantBBody: `Hi {{name}},
+
+Sharing a pattern we see with {manufacturing|packaging|B2B} companies:
+
+1. Buyers search Google / ask for catalogue on WhatsApp
+2. Sales sends PDFs or photos
+3. Follow-ups get lost—no CRM
+
+We built a system for Intellect Kraft-class packaging sales: live catalogue, mobile QR
+catalogue, quote cart, and CRM—plus SEO foundations.
+
+If {{company}} is planning a digital upgrade this quarter, happy to walk through a scoped
+Lead Generation Platform (architecture + ₹1.25L–₹2L bands).
+
+{Open this week?|Worth a 20-min call?}
+Manish · Octavertex Media`,
+				},
+				{
+					// relative delays → absolute Day 2 · 5 · 10 · 21 from enrollment
+					DelayDays:       2,
+					SubjectTemplate: "Re: Lead Generation Platform for {{company}}",
+					BodySpintax: `Hi {{name}} — bumping this once. Happy to send a one-page outline of the Lead Generation
+Platform (deliverables + timeline) if easier than a call.
+
+Manish · Octavertex Media`,
+				},
+				{
+					DelayDays:       3,
+					SubjectTemplate: "{{name}} — timing on website / catalogue?",
+					BodySpintax: `{{name}} — last note from me on this thread.
+
+If website/catalogue isn't a priority this quarter, totally fine—I'll check back next
+quarter. If it is, reply and we'll book 20 minutes.
+
+Manish · Octavertex Media`,
+				},
+				{
+					DelayDays:       5,
+					SubjectTemplate: "{{company}} — 5 SEO page ideas for manufacturers",
+					BodySpintax: `{{name}} — related to {{company}}: many buyers search "{product|category} {city|India}".
+If useful, I can send 5 page ideas that usually help manufacturers show up for those queries.
+
+Manish · Octavertex Media`,
+				},
+				{
+					DelayDays:       11,
+					SubjectTemplate: "Honest teardown of {{website}}?",
+					BodySpintax: `Circling back one last time. If you want an honest teardown of {{website}} (15 min),
+I'm happy to do it with no obligation.
+
+Manish · Octavertex Media · octavertexmedia.com`,
+				},
+			},
+		},
 		{
 			Campaign: campBase(ownerID, workspaceID, "OVM · Fixed-Price MVP (Web/Mobile/SaaS)", 30),
 			Steps: []models.SequenceStep{
@@ -817,7 +963,7 @@ func companyLeads(ownerID, workspaceID int64) []models.Lead {
 		name, company, title, email, website, source, notes string
 		rating                                              float64
 	}
-	// OVM ICPs mapped from https://www.octavertexmedia.com/build-mvp + /services
+	// OVM ICPs: build-mvp/services (USD) + octavertex-growth manufacturing (₹1.25L+).
 	// Persona × package fit × industry × buying trigger.
 	rows := []L{
 		// —— Discovery ($2k / 7d) — idea validation ——
@@ -858,6 +1004,16 @@ func companyLeads(ownerID, workspaceID int64) []models.Lead {
 
 		// —— Manufacturing / internal tools ——
 		{"Rajiv Kulkarni", "ForgeWorks", "Owner", "rajiv@forgeworks.example.com", "https://example.net", "icp-ovm-custom", "Manufacturing: internal ops tool, integrations. Fit: Custom software. Industry: Manufacturing.", 3.5},
+
+		// —— OVM Manufacturing Lead Platform (octavertex-growth · ₹1.25L+) ——
+		{"Suresh Patil", "PackRight Industries", "Owner", "suresh@packright.example.com", "https://packright.example.com", "icp-ovm-mfg", "Mumbai packaging; PDF catalogue + WhatsApp quotes. Trigger: lost export RFQs. Fit: Lead Platform ₹1.25L–₹2L. City: Mumbai.", 3.4},
+		{"Mehul Shah", "Gujarat Flexo Pack", "Sales Director", "mehul@gujflexo.example.com", "https://gujflexo.example.com", "icp-ovm-mfg", "Ahmedabad flexibles; template site, no SEO product pages. Fit: Lead Platform. City: Ahmedabad.", 3.6},
+		{"Anita Deshmukh", "Pune Precision Components", "Partner", "anita@puneprecision.example.com", "https://puneprecision.example.com", "icp-ovm-mfg", "CNC / auto ancillaries; enquiry form dead. Fit: catalogue + CRM. City: Pune.", 3.8},
+		{"Vikram Reddy", "Deccan Polymers", "Owner", "vikram@deccanpoly.example.com", "https://deccanpoly.example.com", "icp-ovm-mfg", "Hyderabad plastics exporter; competitor ranking on Google. Fit: Lead Platform + SEO pages. City: Hyderabad.", 3.5},
+		{"Kavita Jain", "Northbelt Fasteners", "Marketing Manager", "kavita@northbelt.example.com", "https://northbelt.example.com", "icp-ovm-mfg", "Delhi-NCR fasteners; owner-access buyer. Trigger: new product line. Fit: Lead Platform. City: Delhi NCR.", 3.7},
+		{"Ramesh Iyer", "Coimbatore CastTech", "Operations Head", "ramesh@casttech.example.com", "https://casttech.example.com", "icp-ovm-mfg", "Foundry / castings; brochure-only site. Fit: catalogue + quote. City: Coimbatore.", 3.3},
+		{"Farah Qureshi", "Surat Label Works", "Owner", "farah@suratlabels.example.com", "https://suratlabels.example.com", "icp-ovm-mfg", "Label / packaging converter; WhatsApp-only sales. Fit: QR catalogue + CRM. City: Surat.", 3.9},
+		{"Arun Nair", "Kochi Marine Supplies", "Partner", "arun@kochimarine.example.com", "https://kochimarine.example.com", "icp-ovm-mfg", "Marine / industrial B2B; export push. Fit: Lead Platform. City: Kochi.", 3.6},
 
 		// —— RevNext ICPs (unchanged set) ——
 		{"Ravi Sharma", "Palm Grove Resort", "Owner", "owner@palmgrove.example.com", "https://example.com", "icp-revnext-revenue", "Boutique beach resort — heavy OTA mix", 3.6},
