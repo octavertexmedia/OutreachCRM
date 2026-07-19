@@ -8,20 +8,13 @@
   <td>
     <strong>{{.Name}}</strong>
     {{if .Company}}<div class="muted">{{.Company}}{{if .Title}} · {{.Title}}{{end}}</div>{{end}}
-    {{if ge .PremiumScore 70}}<span class="badge premium">premium {{.PremiumScore}}</span>{{else if gt .PremiumScore 0}}<span class="badge">score {{.PremiumScore}}</span>{{end}}
-    {{if gt .Confidence 0}}<span class="badge">conf {{.Confidence}}</span>{{end}}
-    <div class="muted">{{.Email}} · {{.Source}}</div>
-    {{if .DraftSubject}}<div class="badge done">draft ready</div>{{end}}
+    <div class="muted">{{.Email}}{{if .Source}} · {{.Source}}{{end}}</div>
+    {{if .DraftSubject}}<span class="badge done">draft ready</span>{{end}}
+    {{if ge .PremiumScore 70}}<span class="badge premium">premium {{.PremiumScore}}</span>{{end}}
   </td>
   <td>
-    {{if .Website}}<a href="{{.Website}}" target="_blank" rel="noopener">{{.Website}}</a>{{else}}—{{end}}
-    <div class="muted">★ {{printf "%.1f" .GoogleRating}}</div>
-  </td>
-  <td>
-    {{if .Category}}{{.Category}}{{else}}—{{end}}
-    <ul class="muted" style="margin:0.35rem 0 0; padding-left:1.1rem;">
-      {{range issues .IssuesJSON}}<li>{{.}}</li>{{end}}
-    </ul>
+    {{if .Website}}<a href="{{.Website}}" target="_blank" rel="noopener">site</a>{{else}}—{{end}}
+    {{if .Category}}<div class="muted">{{.Category}}</div>{{end}}
   </td>
   <td><span class="badge {{badgeClass .EnrichmentStatus}}">{{.EnrichmentStatus}}</span></td>
   <td>
@@ -31,25 +24,18 @@
         hx-target="#lead-{{.ID}}"
         hx-swap="outerHTML"
         hx-disabled-elt="this">
-        <span class="btn-label">AI Enrichment</span>
+        <span class="btn-label">Enrich</span>
       </button>
       <button class="secondary"
         hx-post="/leads/{{.ID}}/generate-email"
         hx-target="#draft-{{.ID}}"
         hx-swap="innerHTML">
-        Draft email
+        Draft
       </button>
-      <button class="secondary"
-        hx-post="/leads/{{.ID}}/validate-email"
-        hx-target="#val-{{.ID}}"
-        hx-swap="innerHTML">
-        Validate email
-      </button>
-      <form method="post" action="/privacy/delete/{{.ID}}" style="margin:0" onsubmit="return confirm('Redact PII?')">
-        <button class="secondary" type="submit">GDPR erase</button>
+      <form method="post" action="/privacy/delete/{{.ID}}" style="margin:0" onsubmit="return confirm('Erase this lead’s PII?')">
+        <button class="secondary" type="submit">Erase</button>
       </form>
     </div>
-    <div id="val-{{.ID}}"></div>
     <div id="draft-{{.ID}}"></div>
   </td>
 </tr>

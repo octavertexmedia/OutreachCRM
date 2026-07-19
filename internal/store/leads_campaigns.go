@@ -187,19 +187,9 @@ func (s *Store) MarkOutboundReplied(leadEmail string) {
 	_, _ = s.db.Exec(`UPDATE outbound_messages SET replied=1 WHERE lower(to_email)=lower(?) AND status='sent'`, leadEmail)
 }
 
+// SeedDemoLeads is deprecated — dummy leads are no longer inserted.
 func (s *Store) SeedDemoLeads(ownerID, workspaceID int64) (int, error) {
-	demos := []models.Lead{
-		{OwnerID: ownerID, WorkspaceID: workspaceID, Name: "Bright Smile Dental", Company: "Bright Smile Dental", Title: "Owner", Email: "owner@example.com", Website: "http://brightsmile.blogspot.com", GoogleRating: 3.2, Source: "seed", Notes: "runs Facebook ads"},
-		{OwnerID: ownerID, WorkspaceID: workspaceID, Name: "Harbor HVAC", Company: "Harbor HVAC LLC", Title: "Ops Manager", Email: "ops@example.org", Website: "https://example.com", GoogleRating: 4.1, Source: "seed", Notes: "mobile site slow"},
-		{OwnerID: ownerID, WorkspaceID: workspaceID, Name: "Summit Law Group", Company: "Summit Law", Title: "Managing Partner", Email: "partner@example.net", Website: "", GoogleRating: 3.5, Source: "seed", Notes: "no website listed"},
-	}
-	n := 0
-	for _, d := range demos {
-		if _, err := s.CreateLead(d); err == nil {
-			n++
-		}
-	}
-	return n, nil
+	return s.PurgeDummyLeads()
 }
 
 func (s *Store) UpdateLeadEnrichment(id int64, category, issuesJSON string, score, confidence, costCents int, status string) error {

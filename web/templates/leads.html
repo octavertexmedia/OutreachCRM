@@ -10,55 +10,75 @@
 </head>
 <body class="app-body">
   {{template "nav" .}}
-    <h1>1 · Sourcing + 2 · Enrichment + 3 · Writing</h1>
-    <p class="sub">Import prospects, enrich into premium packages, then draft unique cold emails.</p>
 
-    <div class="panel row-actions">
-      <form method="post" action="/leads/seed-playbooks" style="margin:0">
-        <button type="submit">Seed OVM + RevNext playbooks</button>
-      </form>
-      <form method="post" action="/leads/seed" style="margin:0"><button type="submit" class="secondary">Seed demo leads</button></form>
-      <form method="post" action="/leads/enrich-all" style="margin:0"><button type="submit" class="secondary">Bulk enrich pending</button></form>
+  <div class="page-hero">
+    <div>
+      <h1>Leads</h1>
+      <p class="sub" style="margin-bottom:0">Import real ICP, enrich, draft — then enroll into a campaign.</p>
     </div>
-    <p class="muted" style="margin-top:-0.5rem;margin-bottom:1rem;">Playbooks: <strong>OVM Manufacturing Lead Platform (₹1.25L+)</strong> · OVM fixed-price MVP (Discovery / Starter / Rush) · AI/e-com/growth · RevNext hotel suite — campaigns IST 9–18.</p>
-
-    <div class="panel">
-      <h2 style="margin-top:0;font-size:1.05rem;">Add lead</h2>
-      <form class="inline" method="post" action="/leads">
-        <label>Name<input name="name" required></label>
-        <label>Company<input name="company"></label>
-        <label>Title<input name="title"></label>
-        <label>Website<input name="website" placeholder="https://"></label>
-        <label>Email<input name="email" type="email"></label>
-        <label>Phone<input name="phone"></label>
-        <label>Google rating<input name="google_rating" type="number" step="0.1" min="0" max="5"></label>
-        <label>Notes<input name="notes"></label>
-        <label>Consent source<input name="consent_source" placeholder="web form"></label>
-        <label><span>Consent</span><input type="checkbox" name="consent" value="1" style="width:auto"></label>
-        <button type="submit">Add</button>
+    <div class="row-actions">
+      <a class="topbar-link" href="/campaigns" style="border-color:var(--border)">Campaigns</a>
+      <a class="topbar-link" href="/static/ovm-manufacturing-icp.csv" style="border-color:var(--border)">CSV template</a>
+      <form method="post" action="/leads/enrich-all" style="margin:0">
+        <button type="submit" class="secondary">Enrich pending</button>
       </form>
     </div>
+  </div>
 
-    <div class="panel">
-      <h2 style="margin-top:0;font-size:1.05rem;">Bulk CSV import</h2>
-      <p class="muted" style="margin:0 0 0.75rem;font-size:0.88rem;">
-        Headers: <code>name,email,company,title,website,phone,source,notes</code>
-        · <a href="/static/ovm-manufacturing-icp.csv">Download OVM manufacturing ICP template</a>
-        · guide in <code>octavertex-growth/playbook/CRM-WIRING.md</code>
-      </p>
-      <form method="post" action="/leads/import" enctype="multipart/form-data">
-        <label>CSV file<input type="file" name="file" accept=".csv,text/csv" required></label>
-        <button type="submit">Import</button>
-      </form>
+  {{if .Imported}}
+  <div class="flash flash-ok" role="status">Imported {{.ImportedN}} lead(s).</div>
+  {{else if .Purged}}
+  <div class="flash flash-ok" role="status">Removed {{.PurgedN}} dummy lead(s).</div>
+  {{end}}
+
+  {{if eq .LeadCount 0}}
+  <div class="panel empty-state">
+    <h2>No leads yet</h2>
+    <p class="muted">Import a CSV of real manufacturing / B2B contacts, or add one manually. Demo leads are not seeded.</p>
+    <div class="row-actions" style="justify-content:center;margin-top:1rem">
+      <a class="btn" href="#import-csv">Import CSV</a>
     </div>
+  </div>
+  {{end}}
 
-    <div class="panel">
-      <table>
+  <details class="fold panel" {{if eq .LeadCount 0}}open{{end}}>
+    <summary>Add lead</summary>
+    <form class="inline" method="post" action="/leads" style="margin-top:0.85rem">
+      <label>Name<input name="name" required></label>
+      <label>Email<input name="email" type="email" required></label>
+      <label>Company<input name="company"></label>
+      <label>Title<input name="title"></label>
+      <label>Website<input name="website" placeholder="https://"></label>
+      <label>Phone<input name="phone"></label>
+      <label>Notes<input name="notes" placeholder="Trigger / observation"></label>
+      <button type="submit">Add</button>
+    </form>
+  </details>
+
+  <details class="fold panel" id="import-csv" {{if eq .LeadCount 0}}open{{end}}>
+    <summary>Import CSV</summary>
+    <p class="muted" style="margin:0.75rem 0 0.85rem;font-size:0.88rem">
+      Headers: <code>name,email,company,title,website,phone,source,notes</code>
+      · <a href="/static/ovm-manufacturing-icp.csv">Download template</a>
+    </p>
+    <form method="post" action="/leads/import" enctype="multipart/form-data" class="row-actions">
+      <label style="flex:1 1 220px">CSV file<input type="file" name="file" accept=".csv,text/csv" required></label>
+      <button type="submit">Import</button>
+    </form>
+  </details>
+
+  {{if gt .LeadCount 0}}
+  <div class="panel camp-list">
+    <div class="camp-list-head">
+      <h2>Your leads</h2>
+      <span class="muted">{{.LeadCount}} total</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="leads-table">
         <thead>
           <tr>
             <th>Lead</th>
-            <th>Web / rating</th>
-            <th>Category & issues</th>
+            <th>Web</th>
             <th>Status</th>
             <th>Actions</th>
           </tr>
@@ -66,12 +86,13 @@
         <tbody>
           {{range .Leads}}
             {{template "lead_row.html" .}}
-          {{else}}
-            <tr><td colspan="5" class="muted">No leads yet — seed demos or import a CSV.</td></tr>
           {{end}}
         </tbody>
       </table>
     </div>
+  </div>
+  {{end}}
+
   {{template "foot" .}}
 </body>
 </html>

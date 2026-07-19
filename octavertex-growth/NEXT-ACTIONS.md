@@ -7,9 +7,9 @@
 - [ ] Put Calendly + WhatsApp + email on all three  
 
 ## Day 2 — Pipeline (OutReachCRM)
-- [ ] Restart app → **Seed OVM + RevNext playbooks** (loads **Manufacturing Lead Platform ₹1.25L+**)  
+- [ ] Restart app → **Campaigns → Seed playbooks** (loads **Manufacturing Lead Platform ₹1.25L+**; no dummy leads)  
 - [ ] Connect mail + clear `/deliverability`  
-- [ ] Build **100 ICP rows** from [playbook/ICP-IMPORT-TEMPLATE.csv](playbook/ICP-IMPORT-TEMPLATE.csv) → `/leads/import`  
+- [ ] Build **100 real ICP rows** from [playbook/ICP-IMPORT-TEMPLATE.csv](playbook/ICP-IMPORT-TEMPLATE.csv) → `/leads/import`  
 - [ ] Enroll into campaign **OVM · Manufacturing Lead Platform (₹1.25L+)**  
 - [ ] Full wiring: [playbook/CRM-WIRING.md](playbook/CRM-WIRING.md)  
 

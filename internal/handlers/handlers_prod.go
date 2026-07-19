@@ -249,7 +249,7 @@ func (s *Server) leadsImport(w http.ResponseWriter, r *http.Request) {
 		n++
 	}
 	s.Store.Audit(u.WorkspaceID, u.ID, "lead.import", "lead", "", fmt.Sprintf("count=%d", n))
-	http.Redirect(w, r, "/leads", http.StatusSeeOther)
+	http.Redirect(w, r, fmt.Sprintf("/leads?imported=1&n=%d", n), http.StatusSeeOther)
 }
 
 func looksLikeCSVHeader(rec []string) bool {

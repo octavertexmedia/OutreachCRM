@@ -43,7 +43,7 @@ Reverse proxy (nginx on VPS) terminates TLS; leave `TLS_*` unset in the containe
 
 | Step | Where in app |
 |------|----------------|
-| **1 Sourcing** | `/leads` — manual, CSV (header-aware: name/email/company/title/website/phone/source/notes), seed demos + OVM Manufacturing playbook |
+| **1 Sourcing** | `/leads` — manual + CSV (header-aware); playbook seed adds campaigns/templates only (no dummy leads) |
 | **2 Enrichment** | AI Enrichment + bulk enrich; crawl signals + confidence |
 | **3 AI Writing** | Draft email → saved on lead → push into campaign step 1 |
 | **4 Sequencing** | Campaigns + `/queue` + timezone/A/B/round-robin worker |
@@ -96,6 +96,7 @@ Dashboard shows the live funnel for steps 1–6.
 
 ## 8. Changelog
 
+- 2026-07-19 — `/leads` simplified; stop seeding dummy/ICP example.* leads; one-time purge on first leads view; CSV template is header-only.
 - 2026-07-19 — `/campaigns` simplified: compact list, collapsed sequence/enroll, seed only on empty or behind details; create defaults IST 9–18 · 20/day.
 - 2026-07-19 — Octavertex growth wired into product: seed campaign **OVM · Manufacturing Lead Platform (₹1.25L+)** (Day 0/2/5/10/21), Mfg templates + ICP leads, header-aware CSV import (`company/title/source/notes`), `/static/ovm-manufacturing-icp.csv` + `octavertex-growth/playbook/CRM-WIRING.md`.
 - 2026-07-16 — OpenBao multi-app catalog + seed: add `octavertex/project100` (AppRole `project100`, nested aws/pocketbase/database/app groups).

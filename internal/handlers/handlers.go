@@ -267,12 +267,29 @@ func (s *Server) dashboardFor(w http.ResponseWriter, r *http.Request, u models.S
 
 func (s *Server) leadsGet(w http.ResponseWriter, r *http.Request) {
 	u := s.current(r)
+	// One-time cleanup of seeded example.* / demo leads after deploy.
+	if s.Store.GetSetting("dummy_leads_purged", "") != "1" {
+		if n, err := s.Store.PurgeDummyLeads(); err == nil {
+			_ = s.Store.SetSetting("dummy_leads_purged", "1")
+			if n > 0 {
+				s.Store.Audit(u.WorkspaceID, u.ID, "lead.purge_dummy", "lead", "", fmt.Sprintf("n=%d", n))
+			}
+		}
+	}
 	leads, err := s.Store.ListLeads(u.IsAdmin(), u.ID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	s.render(w, "leads.html", map[string]any{"Leads": leads, "Nav": "leads", "User": u})
+	purgedN, _ := strconv.Atoi(r.URL.Query().Get("purged"))
+	s.render(w, "leads.html", map[string]any{
+		"Leads": leads, "Nav": "leads", "User": u,
+		"LeadCount": len(leads),
+		"Purged":    r.URL.Query().Get("purged") != "",
+		"PurgedN":   purgedN,
+		"Imported":  r.URL.Query().Get("imported") == "1",
+		"ImportedN": r.URL.Query().Get("n"),
+	})
 }
 
 func (s *Server) leadsPost(w http.ResponseWriter, r *http.Request) {
@@ -415,21 +432,24 @@ func (s *Server) leadApplyDraft(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) leadsSeedPlaybooks(w http.ResponseWriter, r *http.Request) {
 	u := s.current(r)
-	leads, templates, campaigns, err := s.Store.SeedCompanyPlaybooks(u.ID, u.WorkspaceID)
+	purged, templates, campaigns, err := s.Store.SeedCompanyPlaybooks(u.ID, u.WorkspaceID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	_ = s.Store.SetSetting("dummy_leads_purged", "1")
 	s.Store.Audit(u.WorkspaceID, u.ID, "playbooks.seed", "workspace", strconv.FormatInt(u.WorkspaceID, 10),
-		store.SeedSummary(leads, templates, campaigns))
-	http.Redirect(w, r, fmt.Sprintf("/campaigns?seeded=1&leads=%d&templates=%d&campaigns=%d", leads, templates, campaigns), http.StatusSeeOther)
+		store.SeedSummary(purged, templates, campaigns))
+	http.Redirect(w, r, fmt.Sprintf("/campaigns?seeded=1&leads=%d&templates=%d&campaigns=%d", purged, templates, campaigns), http.StatusSeeOther)
 }
 
 func (s *Server) leadsSeed(w http.ResponseWriter, r *http.Request) {
+	// Legacy route: purge dummy leads instead of inserting demos.
 	u := s.current(r)
-	n, _ := s.Store.SeedDemoLeads(u.ID, u.WorkspaceID)
-	s.Store.Audit(u.WorkspaceID, u.ID, "lead.seed", "lead", "", fmt.Sprintf("n=%d", n))
-	http.Redirect(w, r, "/leads", http.StatusSeeOther)
+	n, _ := s.Store.PurgeDummyLeads()
+	_ = s.Store.SetSetting("dummy_leads_purged", "1")
+	s.Store.Audit(u.WorkspaceID, u.ID, "lead.purge_dummy", "lead", "", fmt.Sprintf("n=%d", n))
+	http.Redirect(w, r, fmt.Sprintf("/leads?purged=%d", n), http.StatusSeeOther)
 }
 
 func (s *Server) leadsEnrichAll(w http.ResponseWriter, r *http.Request) {

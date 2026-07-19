@@ -881,6 +881,22 @@ button:disabled { opacity: 0.55; cursor: wait; }
 .camp-enroll label { flex: 1 1 220px; }
 .camp-enroll select { width: 100%; }
 
+.leads-table { margin: 0; }
+.leads-table th, .leads-table td { padding: 0.85rem 1.1rem; }
+.leads-table .row-actions button { padding: 0.4rem 0.7rem; font-size: 0.85rem; }
+
+a.btn {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none !important;
+  background: linear-gradient(180deg, #14a892 0%, var(--accent) 100%);
+  color: #fff !important;
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.95rem;
+  font-weight: 650;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 6px 14px rgba(15, 143, 123, 0.22);
+}
+
 @media (max-width: 720px) {
   .page-hero { flex-direction: column; align-items: stretch; }
 }

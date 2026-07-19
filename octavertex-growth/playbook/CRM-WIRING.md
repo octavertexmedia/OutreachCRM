@@ -3,12 +3,12 @@
 ## One-time setup
 
 1. Restart OutReachCRM so the latest seed is loaded (`make run` / redeploy).
-2. Sign in → **Leads** or **Campaigns** → **Seed OVM + RevNext playbooks**.
+2. Sign in → **Campaigns** → **Seed playbooks** (campaigns + templates only — **no dummy leads**).
 3. Confirm campaign **`OVM · Manufacturing Lead Platform (₹1.25L+)`** appears (5 steps: Day 0 · 2 · 5 · 10 · 21).
 4. Confirm templates named **`OVM · Mfg …`** under `/templates`.
 5. Connect send account + pass `/deliverability` before volume.
 
-Idempotent: re-clicking seed skips existing names/emails. New manufacturing pack is added on first seed after upgrade.
+Idempotent: re-clicking seed skips existing campaign/template names. Seed also purges leftover `example.*` demo leads.
 
 ## Import real ICP (Week 1 goal: 100)
 

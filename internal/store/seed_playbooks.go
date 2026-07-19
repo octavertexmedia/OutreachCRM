@@ -2,19 +2,20 @@ package store
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/manishkumar/outreachcrm/internal/models"
 )
 
 // SeedCompanyPlaybooks loads OctaVertex Media + RevNext selling playbooks:
-// email templates, multi-step campaigns, and ICP demo leads.
+// email templates and multi-step campaigns (no demo/ICP leads).
 // Includes OVM Manufacturing Lead Platform (octavertex-growth kit: ₹1.25L+).
-// Idempotent: skips campaigns/templates/leads that already exist by name/email.
-func (s *Store) SeedCompanyPlaybooks(ownerID, workspaceID int64) (leads, templates, campaigns int, err error) {
+// Purges leftover dummy example.* leads, then inserts missing templates/campaigns.
+func (s *Store) SeedCompanyPlaybooks(ownerID, workspaceID int64) (purged, templates, campaigns int, err error) {
 	if workspaceID == 0 {
 		workspaceID = 1
 	}
+
+	purged, _ = s.PurgeDummyLeads()
 
 	for _, t := range companyTemplates(workspaceID) {
 		if s.templateExists(workspaceID, t.Name) {
@@ -31,30 +32,36 @@ func (s *Store) SeedCompanyPlaybooks(ownerID, workspaceID int64) (leads, templat
 		}
 		id, e := s.CreateCampaign(pack.Campaign)
 		if e != nil {
-			return leads, templates, campaigns, e
+			return purged, templates, campaigns, e
 		}
 		for i, st := range pack.Steps {
 			st.CampaignID = id
 			st.StepOrder = i + 1
 			if _, e := s.AddStep(st); e != nil {
-				return leads, templates, campaigns, e
+				return purged, templates, campaigns, e
 			}
 		}
 		campaigns++
 	}
+	return purged, templates, campaigns, nil
+}
 
-	for _, l := range companyLeads(ownerID, workspaceID) {
-		if strings.TrimSpace(l.Email) == "" {
-			continue
-		}
-		if _, e := s.FindLeadByEmail(l.Email); e == nil {
-			continue
-		}
-		if _, e := s.CreateLead(l); e == nil {
-			leads++
-		}
+// PurgeDummyLeads hard-deletes seeded demo / example.* ICP rows (and related outbound).
+func (s *Store) PurgeDummyLeads() (int, error) {
+	where := `lower(email) LIKE '%@example.com'
+		OR lower(email) LIKE '%@example.org'
+		OR lower(email) LIKE '%@example.net'
+		OR lower(email) LIKE '%.example.com'
+		OR lower(email) LIKE '%.example.org'
+		OR lower(email) LIKE '%.example.net'
+		OR source = 'seed'`
+	_, _ = s.db.Exec(`DELETE FROM outbound_messages WHERE lead_id IN (SELECT id FROM leads WHERE ` + where + `)`)
+	res, err := s.db.Exec(`DELETE FROM leads WHERE ` + where)
+	if err != nil {
+		return 0, err
 	}
-	return leads, templates, campaigns, nil
+	n, _ := res.RowsAffected()
+	return int(n), nil
 }
 
 func (s *Store) templateExists(workspaceID int64, name string) bool {
@@ -958,91 +965,7 @@ RevNext`,
 	}
 }
 
-func companyLeads(ownerID, workspaceID int64) []models.Lead {
-	type L struct {
-		name, company, title, email, website, source, notes string
-		rating                                              float64
-	}
-	// OVM ICPs: build-mvp/services (USD) + octavertex-growth manufacturing (₹1.25L+).
-	// Persona × package fit × industry × buying trigger.
-	rows := []L{
-		// —— Discovery ($2k / 7d) — idea validation ——
-		{"Aarav Mehta", "Northloop Labs", "Founder", "aarav.mehta@example.com", "https://example.com", "icp-ovm-discovery", "Pre-seed SaaS idea; needs Discovery go/no-go before eng. Fit: Discovery $2k/7d. Geo: India.", 4.2},
-		{"Elena Vargas", "ClinicFlow", "Co-founder", "elena.vargas@example.com", "https://example.org", "icp-ovm-discovery", "Healthcare workflow app — validate flows before HIPAA-heavy build. Fit: Discovery. Industry: Healthcare.", 4.0},
-		{"Marcus Chen", "PropNest", "Founder", "marcus.chen@example.net", "https://example.net", "icp-ovm-discovery", "Real-estate marketplace concept; wants prototype + architecture. Fit: Discovery → Starter.", 3.9},
-
-		// —— Starter MVP ($3999 / 21d) — core v1 ——
-		{"Sneha Kapoor", "EduSpark", "CTO", "sneha.kapoor@example.com", "https://example.com", "icp-ovm-starter", "EdTech SaaS: auth + courses + progress. Fit: Starter $3,999/21d (≤5 features). Industry: Education.", 4.1},
-		{"Daniel Okonkwo", "PayLane", "Founder", "daniel.okonkwo@example.com", "https://example.org", "icp-ovm-starter", "Fintech MVP for SME payouts; fixed-price buyer. Fit: Starter (add Stripe later via Rush). Industry: Finance.", 4.3},
-		{"Riya Sen", "RetailOS", "CEO", "riya.sen@example.net", "https://example.net", "icp-ovm-starter", "Retail ops dashboard for indie stores. Fit: Starter web MVP. Industry: Retail.", 3.8},
-		{"Tom Hale", "HireLoop", "Founder", "tom.hale@example.com", "https://example.com", "icp-ovm-starter", "UK founder; HR SaaS v1; rejects agencies at $50k+. Fit: Starter. Geo: UK.", 4.0},
-
-		// —— Rush MVP ($5499 / 14d) — deadline / payments ——
-		{"Priya Nair", "BrightCart AI", "CEO", "priya.nair@example.com", "https://example.org", "icp-ovm-rush", "Demo day in 3 weeks; needs Stripe + admin fast. Fit: Rush $5,499/14d. Track: AI + e-com.", 4.0},
-		{"Lucas Brandt", "Evently", "Founder", "lucas.brandt@example.net", "https://example.net", "icp-ovm-rush", "Pitch next month; Shark-Tank-style deadline pressure. Fit: Rush. Geo: EU.", 3.7},
-		{"Anika Bose", "MediBook", "Founder", "anika.bose@example.com", "https://example.com", "icp-ovm-rush", "Clinic booking + payments; investor demo. Fit: Rush (Stripe, email, admin). Industry: Healthcare.", 4.1},
-
-		// —— Mobile (React Native) ——
-		{"Jordan Lee", "Fleetly", "Founder", "jordan.lee@example.net", "https://example.net", "icp-ovm-mobile", "US logistics: iOS+Android one codebase. Fit: Starter/Rush mobile track. Geo: US.", 3.8},
-		{"Yasmin Alvi", "FitSquad", "CEO", "yasmin.alvi@example.com", "https://example.org", "icp-ovm-mobile", "Consumer fitness app; wants RN + push. Fit: Starter mobile. Industry: Consumer/Health.", 3.9},
-
-		// —— AI / LLM ——
-		{"Noah Kim", "DocuMind", "Founder", "noah.kim@example.com", "https://example.com", "icp-ovm-ai", "RAG for internal docs; cost-aware LLM. Fit: AI MVP on Starter scope. Industry: SaaS/B2B.", 4.2},
-		{"Isha Reddy", "LegalBrief AI", "Co-founder", "isha.reddy@example.net", "https://example.org", "icp-ovm-ai", "Legal summarizer; needs guardrails not endless prototype. Fit: AI track + Discovery first.", 4.0},
-
-		// —— E-commerce / Marketplace ——
-		{"Omar Farooq", "CraftBazaar", "Founder", "omar.farooq@example.com", "https://example.net", "icp-ovm-ecom", "D2C + multi-vendor crafts; conversion/checkout focus. Fit: E-com services → Starter. Industry: E-Commerce.", 3.6},
-		{"Chloe Martin", "SkillSwap", "Founder", "chloe.martin@example.com", "https://example.org", "icp-ovm-marketplace", "Two-sided skills marketplace; payouts + trust. Fit: Marketplace development. Geo: US.", 3.8},
-
-		// —— Post-MVP growth ——
-		{"Kabir Shah", "Launchpad CRM", "CEO", "kabir.shah@example.com", "https://example.com", "icp-ovm-growth", "MVP live; CAC too high; wants PPC + landing tied to activation. Fit: ~$2999/mo growth retainer.", 4.1},
-		{"Sofia Berg", "NordicCart", "Head of Growth", "sofia.berg@example.net", "https://example.net", "icp-ovm-growth", "Product shipped; needs SEO/content + paid. Fit: Grow services. Geo: EU.", 3.9},
-
-		// —— Cloud / DevOps / Security add-ons ——
-		{"Vivek Menon", "ScaleStack", "CTO", "vivek.menon@example.com", "https://example.org", "icp-ovm-cloud", "MVP up; needs AWS/GCP env, CI/CD, cost guardrails. Fit: Cloud + DevOps services.", 4.0},
-		{"Hannah Brooks", "PaySafe Co", "Founder", "hannah.brooks@example.com", "https://example.com", "icp-ovm-security", "Payments + PII; wants threat modeling / secure SDLC. Fit: Cybersecurity services. Industry: Finance.", 4.2},
-
-		// —— Manufacturing / internal tools ——
-		{"Rajiv Kulkarni", "ForgeWorks", "Owner", "rajiv@forgeworks.example.com", "https://example.net", "icp-ovm-custom", "Manufacturing: internal ops tool, integrations. Fit: Custom software. Industry: Manufacturing.", 3.5},
-
-		// —— OVM Manufacturing Lead Platform (octavertex-growth · ₹1.25L+) ——
-		{"Suresh Patil", "PackRight Industries", "Owner", "suresh@packright.example.com", "https://packright.example.com", "icp-ovm-mfg", "Mumbai packaging; PDF catalogue + WhatsApp quotes. Trigger: lost export RFQs. Fit: Lead Platform ₹1.25L–₹2L. City: Mumbai.", 3.4},
-		{"Mehul Shah", "Gujarat Flexo Pack", "Sales Director", "mehul@gujflexo.example.com", "https://gujflexo.example.com", "icp-ovm-mfg", "Ahmedabad flexibles; template site, no SEO product pages. Fit: Lead Platform. City: Ahmedabad.", 3.6},
-		{"Anita Deshmukh", "Pune Precision Components", "Partner", "anita@puneprecision.example.com", "https://puneprecision.example.com", "icp-ovm-mfg", "CNC / auto ancillaries; enquiry form dead. Fit: catalogue + CRM. City: Pune.", 3.8},
-		{"Vikram Reddy", "Deccan Polymers", "Owner", "vikram@deccanpoly.example.com", "https://deccanpoly.example.com", "icp-ovm-mfg", "Hyderabad plastics exporter; competitor ranking on Google. Fit: Lead Platform + SEO pages. City: Hyderabad.", 3.5},
-		{"Kavita Jain", "Northbelt Fasteners", "Marketing Manager", "kavita@northbelt.example.com", "https://northbelt.example.com", "icp-ovm-mfg", "Delhi-NCR fasteners; owner-access buyer. Trigger: new product line. Fit: Lead Platform. City: Delhi NCR.", 3.7},
-		{"Ramesh Iyer", "Coimbatore CastTech", "Operations Head", "ramesh@casttech.example.com", "https://casttech.example.com", "icp-ovm-mfg", "Foundry / castings; brochure-only site. Fit: catalogue + quote. City: Coimbatore.", 3.3},
-		{"Farah Qureshi", "Surat Label Works", "Owner", "farah@suratlabels.example.com", "https://suratlabels.example.com", "icp-ovm-mfg", "Label / packaging converter; WhatsApp-only sales. Fit: QR catalogue + CRM. City: Surat.", 3.9},
-		{"Arun Nair", "Kochi Marine Supplies", "Partner", "arun@kochimarine.example.com", "https://kochimarine.example.com", "icp-ovm-mfg", "Marine / industrial B2B; export push. Fit: Lead Platform. City: Kochi.", 3.6},
-
-		// —— RevNext ICPs (unchanged set) ——
-		{"Ravi Sharma", "Palm Grove Resort", "Owner", "owner@palmgrove.example.com", "https://example.com", "icp-revnext-revenue", "Boutique beach resort — heavy OTA mix", 3.6},
-		{"Ananya Iyer", "Heritage Haveli Jaipur", "General Manager", "gm@haveli.example.com", "https://example.org", "icp-revnext-revenue", "ADR soft vs peak weekends; wants audit", 3.9},
-		{"Vikram Singh", "Orbit Business Hotel", "Revenue Manager", "revenue@orbitbiz.example.com", "https://example.net", "icp-revnext-revenue", "12+ OTA channels; parity issues", 4.0},
-		{"Meera Joshi", "Hilltop Stays", "Owner", "meera@hilltop.example.com", "https://example.com", "icp-revnext-pms", "2-property portfolio; desk tools scattered", 3.7},
-		{"Karthik Rao", "CityNest Hotels", "Ops Head", "ops@citynest.example.com", "https://example.org", "icp-revnext-pms", "Needs multi-property PMS + GST folios", 4.2},
-		{"Fatima Khan", "Spice Route Kitchen", "F&B Manager", "fb@spiceroute.example.com", "https://example.net", "icp-revnext-pos", "Hotel restaurant; Swiggy/Zomato + room service", 3.5},
-		{"Arjun Desai", "Neon Bistro", "Owner", "arjun@neonbistro.example.com", "https://example.com", "icp-revnext-pos", "QR ordering + inventory pain", 3.8},
-		{"Nisha Verma", "Lakeview Inn", "Owner", "nisha@lakeview.example.com", "https://example.org", "icp-revnext-booking", "Wants direct booking + Google Hotel Ads", 3.4},
-		{"Rohit Malhotra", "Skyline Suites", "Marketing Head", "marketing@skyline.example.com", "https://example.net", "icp-revnext-booking", "Commission too high on metros", 4.1},
-		{"Sana Qureshi", "Traverse Agents", "Director", "sana@traverse.example.com", "https://example.com", "icp-revnext-b2b", "Travel agency needing contract rate portal", 4.0},
-		{"Deepak Agarwal", "CorpStay Buyers", "Travel Manager", "deepak@corpstay.example.com", "https://example.org", "icp-revnext-b2b", "Corporate allotments across 8 cities", 3.9},
-		{"Helen Cruz", "Bamboo Boutique", "Owner", "helen@bamboo.example.com", "https://example.net", "icp-revnext-cms", "Needs hotel website + themes fast", 3.6},
-	}
-	out := make([]models.Lead, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, models.Lead{
-			OwnerID: ownerID, WorkspaceID: workspaceID,
-			Name: r.name, Company: r.company, Title: r.title,
-			Email: r.email, Website: r.website, Source: r.source,
-			Notes: r.notes, GoogleRating: r.rating,
-			EnrichmentStatus: "pending",
-		})
-	}
-	return out
-}
-
 // SeedSummary is a human-readable result.
-func SeedSummary(leads, templates, campaigns int) string {
-	return fmt.Sprintf("Seeded %d leads, %d templates, %d campaigns (skipped existing).", leads, templates, campaigns)
+func SeedSummary(purged, templates, campaigns int) string {
+	return fmt.Sprintf("Purged %d dummy leads; seeded %d templates, %d campaigns (skipped existing).", purged, templates, campaigns)
 }
