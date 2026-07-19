@@ -179,7 +179,7 @@ func (s *Store) SetLeadEnrichmentStatus(id int64, status string) error {
 	return err
 }
 
-func (s *Store) ListCampaigns(admin bool, ownerID int64) ([]models.Campaign, error) {
+func (s *Store) ListCampaigns(admin bool, ownerID, workspaceID int64) ([]models.Campaign, error) {
 	q := `SELECT id, COALESCE(owner_id,0), COALESCE(workspace_id,1), name, status, daily_send_limit,
 		COALESCE(timezone,'UTC'), COALESCE(send_window_start,0), COALESCE(send_window_end,23), COALESCE(ab_enabled,0),
 		COALESCE(deliverability_paused,0), created_at FROM campaigns WHERE 1=1`
@@ -187,6 +187,10 @@ func (s *Store) ListCampaigns(admin bool, ownerID int64) ([]models.Campaign, err
 	if !admin {
 		q += ` AND owner_id=?`
 		args = append(args, ownerID)
+	}
+	if workspaceID > 0 {
+		q += ` AND workspace_id=?`
+		args = append(args, workspaceID)
 	}
 	q += ` ORDER BY id DESC`
 	rows, err := s.db.Query(q, args...)

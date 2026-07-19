@@ -39,16 +39,7 @@ func (s *Store) ListAudit(workspaceID int64, limit int) ([]models.AuditEntry, er
 }
 
 func (s *Store) EnsureWorkspace(name string) (int64, error) {
-	var id int64
-	err := s.db.QueryRow(`SELECT id FROM workspaces ORDER BY id LIMIT 1`).Scan(&id)
-	if err == nil {
-		return id, nil
-	}
-	res, err := s.db.Exec(`INSERT INTO workspaces(name, created_at) VALUES(?,?)`, name, fmtTime(now()))
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
+	return s.EnsureNamedWorkspace(name)
 }
 
 func (s *Store) ListWorkspaces() ([]models.Workspace, error) {

@@ -2,22 +2,30 @@ package store
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/manishkumar/outreachcrm/internal/models"
 )
 
-// SeedCompanyPlaybooks loads OctaVertex Media + RevNext selling playbooks:
-// email templates and multi-step campaigns (no demo/ICP leads).
-// Includes OVM Manufacturing Lead Platform (octavertex-growth kit: ₹1.25L+).
-// Purges leftover dummy example.* leads, then inserts missing templates/campaigns.
+// SeedCompanyPlaybooks loads all company playbooks into one workspace (legacy).
 func (s *Store) SeedCompanyPlaybooks(ownerID, workspaceID int64) (purged, templates, campaigns int, err error) {
+	return s.SeedCompanyPlaybooksFor(ownerID, workspaceID, PlaybookAll)
+}
+
+// SeedCompanyPlaybooksFor loads OVM and/or RevNext playbooks into workspaceID.
+// company: ovm | revnext | all
+func (s *Store) SeedCompanyPlaybooksFor(ownerID, workspaceID int64, company string) (purged, templates, campaigns int, err error) {
 	if workspaceID == 0 {
 		workspaceID = 1
+	}
+	company = strings.ToLower(strings.TrimSpace(company))
+	if company == "" {
+		company = PlaybookAll
 	}
 
 	purged, _ = s.PurgeDummyLeads()
 
-	for _, t := range companyTemplates(workspaceID) {
+	for _, t := range filterTemplatesByCompany(companyTemplates(workspaceID), company) {
 		if s.templateExists(workspaceID, t.Name) {
 			continue
 		}
@@ -26,7 +34,7 @@ func (s *Store) SeedCompanyPlaybooks(ownerID, workspaceID int64) (purged, templa
 		}
 	}
 
-	for _, pack := range companyCampaignPacks(ownerID, workspaceID) {
+	for _, pack := range filterCampaignsByCompany(companyCampaignPacks(ownerID, workspaceID), company) {
 		if s.campaignExists(workspaceID, pack.Campaign.Name) {
 			continue
 		}
@@ -44,6 +52,44 @@ func (s *Store) SeedCompanyPlaybooks(ownerID, workspaceID int64) (purged, templa
 		campaigns++
 	}
 	return purged, templates, campaigns, nil
+}
+
+func filterTemplatesByCompany(all []models.EmailTemplate, company string) []models.EmailTemplate {
+	if company == PlaybookAll {
+		return all
+	}
+	prefix := "OVM ·"
+	if company == PlaybookRevNext {
+		prefix = "RevNext ·"
+	} else if company != PlaybookOVM {
+		return all
+	}
+	var out []models.EmailTemplate
+	for _, t := range all {
+		if strings.HasPrefix(t.Name, prefix) {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func filterCampaignsByCompany(all []campaignPack, company string) []campaignPack {
+	if company == PlaybookAll {
+		return all
+	}
+	prefix := "OVM ·"
+	if company == PlaybookRevNext {
+		prefix = "RevNext ·"
+	} else if company != PlaybookOVM {
+		return all
+	}
+	var out []campaignPack
+	for _, p := range all {
+		if strings.HasPrefix(p.Campaign.Name, prefix) {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // PurgeDummyLeads hard-deletes seeded demo / example.* ICP rows (and related outbound).

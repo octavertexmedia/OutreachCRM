@@ -141,6 +141,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /users", auth.RequireAdmin(s.usersGet))
 	mux.HandleFunc("POST /users", auth.RequireAdmin(s.usersPost))
 	mux.HandleFunc("POST /users/{id}/active", auth.RequireAdmin(s.usersActive))
+	mux.HandleFunc("POST /users/{id}/workspace", auth.RequireAdmin(s.usersAssignWorkspace))
 
 	s.registerProdRoutes(mux)
 	s.registerPanelRoutes(mux)
@@ -184,6 +185,18 @@ func (s *Server) metrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) render(w http.ResponseWriter, name string, data any) {
+	if m, ok := data.(map[string]any); ok {
+		if u, ok := m["User"].(models.SessionUser); ok && u.ID > 0 {
+			if _, has := m["WorkspaceName"]; !has {
+				m["WorkspaceName"] = s.Store.WorkspaceName(u.WorkspaceID)
+			}
+			if u.IsAdmin() {
+				if _, has := m["AllWorkspaces"]; !has {
+					m["AllWorkspaces"], _ = s.Store.ListWorkspaces()
+				}
+			}
+		}
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := s.Templates.ExecuteTemplate(w, name, data); err != nil {
 		slog.Error("template", "name", name, "err", err)
@@ -425,7 +438,7 @@ func (s *Server) leadGenerateEmail(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = s.Store.SaveLeadDraft(id, d.Subject, d.Body)
 	_ = s.Store.RecordLLMUsage(u.WorkspaceID, u.ID, "write", 0, 2)
-	camps, _ := s.Store.ListCampaigns(u.IsAdmin(), u.ID)
+	camps, _ := s.Store.ListCampaigns(u.IsAdmin(), u.ID, u.WorkspaceID)
 	var campOpts strings.Builder
 	for _, c := range camps {
 		fmt.Fprintf(&campOpts, `<option value="%d">%s</option>`, c.ID, template.HTMLEscapeString(c.Name))
@@ -484,12 +497,31 @@ func (s *Server) leadApplyDraft(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) leadsSeedPlaybooks(w http.ResponseWriter, r *http.Request) {
 	u := s.current(r)
-	purged, templates, campaigns, err := s.Store.SeedCompanyPlaybooks(u.ID, u.WorkspaceID)
+	_ = r.ParseForm()
+	mode := strings.TrimSpace(r.FormValue("mode"))
+	_ = s.Store.SetSetting("dummy_leads_purged", "1")
+
+	// Default / brand: split OVM → OctaVertex Media, RevNext → RevNext workspaces.
+	if mode == "" || mode == "brand" {
+		ovmT, ovmC, revT, revC, purged, err := s.Store.SeedBrandPlaybooks(u.ID)
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		templates := ovmT + revT
+		campaigns := ovmC + revC
+		s.Store.Audit(u.WorkspaceID, u.ID, "playbooks.seed_brands", "workspace", "brand",
+			fmt.Sprintf("ovm_t=%d ovm_c=%d rev_t=%d rev_c=%d purged=%d", ovmT, ovmC, revT, revC, purged))
+		http.Redirect(w, r, fmt.Sprintf("/workspaces?seeded=1&templates=%d&campaigns=%d&leads=%d", templates, campaigns, purged), http.StatusSeeOther)
+		return
+	}
+
+	// Seed into the active session workspace only (ovm | revnext | all).
+	purged, templates, campaigns, err := s.Store.SeedCompanyPlaybooksFor(u.ID, u.WorkspaceID, mode)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	_ = s.Store.SetSetting("dummy_leads_purged", "1")
 	s.Store.Audit(u.WorkspaceID, u.ID, "playbooks.seed", "workspace", strconv.FormatInt(u.WorkspaceID, 10),
 		store.SeedSummary(purged, templates, campaigns))
 	http.Redirect(w, r, fmt.Sprintf("/campaigns?seeded=1&leads=%d&templates=%d&campaigns=%d", purged, templates, campaigns), http.StatusSeeOther)
@@ -544,12 +576,12 @@ func (s *Server) queueGet(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) campaignsGet(w http.ResponseWriter, r *http.Request) {
 	u := s.current(r)
-	camps, err := s.Store.ListCampaigns(u.IsAdmin(), u.ID)
+	camps, err := s.Store.ListCampaigns(u.IsAdmin(), u.ID, u.WorkspaceID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	leads, _ := s.Store.ListLeads(u.IsAdmin(), u.ID)
+	leads, _ := s.Store.ListLeadsFiltered(u.IsAdmin(), u.ID, u.WorkspaceID, models.LeadFilter{})
 	audiences, _ := s.Store.ListAudiences(u.IsAdmin(), u.ID, u.WorkspaceID)
 	type campView struct {
 		models.Campaign
@@ -687,7 +719,7 @@ func (s *Server) campaignEnroll(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) accountsGet(w http.ResponseWriter, r *http.Request) {
 	u := s.current(r)
-	accounts, err := s.Store.ListAccounts(u.IsAdmin(), u.ID)
+	accounts, err := s.Store.ListAccounts(u.IsAdmin(), u.ID, u.WorkspaceID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -911,20 +943,38 @@ func (s *Server) usersGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	s.render(w, "users.html", map[string]any{"Users": users, "Nav": "users", "User": u})
+	wsList, _ := s.Store.ListWorkspaces()
+	wsNames := map[int64]string{}
+	for _, ws := range wsList {
+		wsNames[ws.ID] = ws.Name
+	}
+	s.render(w, "users.html", map[string]any{
+		"Users": users, "Nav": "users", "User": u,
+		"Workspaces": wsList, "WorkspaceNames": wsNames,
+		"Assigned": r.URL.Query().Get("assigned") == "1",
+	})
 }
 
 func (s *Server) usersPost(w http.ResponseWriter, r *http.Request) {
+	u := s.current(r)
 	_ = r.ParseForm()
 	role := r.FormValue("role")
 	if role != models.RoleAdmin && role != models.RoleSender {
 		role = models.RoleSender
 	}
-	_, err := s.Store.CreateUser(strings.TrimSpace(r.FormValue("email")), r.FormValue("password"), role)
+	wsID, _ := strconv.ParseInt(r.FormValue("workspace_id"), 10, 64)
+	if wsID <= 0 {
+		wsID = u.WorkspaceID
+	}
+	if wsID <= 0 {
+		wsID = 1
+	}
+	_, err := s.Store.CreateUserInWorkspace(strings.TrimSpace(r.FormValue("email")), r.FormValue("password"), role, wsID)
 	if err != nil {
 		http.Error(w, err.Error(), 400)
 		return
 	}
+	s.Store.Audit(u.WorkspaceID, u.ID, "user.create", "user", "", fmt.Sprintf("ws=%d role=%s", wsID, role))
 	http.Redirect(w, r, "/users", http.StatusSeeOther)
 }
 
@@ -934,6 +984,20 @@ func (s *Server) usersActive(w http.ResponseWriter, r *http.Request) {
 	active := r.FormValue("active") == "1"
 	_ = s.Store.SetUserActive(id, active)
 	http.Redirect(w, r, "/users", http.StatusSeeOther)
+}
+
+func (s *Server) usersAssignWorkspace(w http.ResponseWriter, r *http.Request) {
+	actor := s.current(r)
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	_ = r.ParseForm()
+	wsID, _ := strconv.ParseInt(r.FormValue("workspace_id"), 10, 64)
+	if err := s.Store.SetUserWorkspace(id, wsID); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	s.Store.Audit(actor.WorkspaceID, actor.ID, "user.assign_workspace", "user", strconv.FormatInt(id, 10),
+		fmt.Sprintf("workspace=%d", wsID))
+	http.Redirect(w, r, "/users?assigned=1", http.StatusSeeOther)
 }
 
 func (s *Server) unsubscribeGet(w http.ResponseWriter, r *http.Request) {

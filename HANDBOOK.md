@@ -11,7 +11,7 @@ Production-lean outreach CRM on one Go binary (≤80 MB with Zvec): multi-user w
 | **admin** | All data, `/users`, `/workspaces`, `/audit` |
 | **sender** | Own leads/campaigns/accounts; shared workspace tools |
 
-Bootstrap admin from `BOOTSTRAP_ADMIN_*` when users table is empty. Users belong to a **workspace**.
+Bootstrap admin from `BOOTSTRAP_ADMIN_*` when users table is empty. Users belong to a **workspace**. Startup ensures **Default**, **OctaVertex Media**, and **RevNext**; admins onboard more on `/workspaces`, switch via the sidebar, and assign senders on `/users`. Brand playbook seed loads OVM packs into OctaVertex Media and RevNext packs into RevNext.
 
 ## 3. Stack & deploy
 
@@ -101,6 +101,7 @@ Dashboard shows the live funnel for steps 1–6.
 
 ## 8. Changelog
 
+- 2026-07-19 — Multi-workspace: auto OctaVertex Media + RevNext tenants; onboard any new workspace with optional playbook pack; admin switcher; assign users to workspace; brand seed splits OVM/RevNext packs; lists scoped to active workspace.
 - 2026-07-19 — Audiences: saved lead filters (category/source/enrichment/company/email) with member snapshot, live preview, bulk enroll into campaigns; filter bar + “Save as audience” on `/leads`; primary campaign enroll path.
 - 2026-07-19 — Dashboard business snapshot: KPI strip + pipeline funnel, D3 world bubbles (TLD→country), campaign treemap & activity bars, prev-vs-new leads area, category donut, ICP word cloud, reply intents; JSON at `GET /api/dashboard/snapshot`.
 - 2026-07-19 — Search categories: All / Leads / Campaigns / Email / Inbox / Queue / Templates / Accounts, plus field chips (name, email, phone, website, company, subject, notes).

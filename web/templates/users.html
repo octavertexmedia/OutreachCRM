@@ -9,31 +9,61 @@
 </head>
 <body class="app-body">
   {{template "nav" .}}
-    <h1>Users</h1>
-    <p class="sub">Admin-only. Create senders and manage access.</p>
 
-    <div class="panel">
-      <form class="inline" method="post" action="/users">
-        <label>Email<input type="email" name="email" required></label>
-        <label>Password<input type="password" name="password" required minlength="8"></label>
-        <label>Role
-          <select name="role">
-            <option value="sender">sender</option>
-            <option value="admin">admin</option>
-          </select>
-        </label>
-        <button type="submit">Create user</button>
-      </form>
+  <div class="page-hero">
+    <div>
+      <h1>Users</h1>
+      <p class="sub" style="margin-bottom:0">Create senders and assign them to a workspace (OctaVertex Media, RevNext, or any onboarded tenant).</p>
     </div>
+    <div class="row-actions">
+      <a class="topbar-link" href="/workspaces" style="border-color:var(--border)">Workspaces</a>
+    </div>
+  </div>
 
-    <div class="panel">
-      <table>
-        <thead><tr><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
+  {{if .Assigned}}
+  <div class="flash flash-ok" role="status">User workspace updated. They will land there on next login (admins can switch anytime).</div>
+  {{end}}
+
+  <div class="panel">
+    <form class="inline" method="post" action="/users">
+      <label>Email<input type="email" name="email" required></label>
+      <label>Password<input type="password" name="password" required minlength="8"></label>
+      <label>Role
+        <select name="role">
+          <option value="sender">sender</option>
+          <option value="admin">admin</option>
+        </select>
+      </label>
+      <label>Workspace
+        <select name="workspace_id" required>
+          {{range .Workspaces}}
+          <option value="{{.ID}}" {{if eq .ID $.User.WorkspaceID}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+      </label>
+      <button type="submit">Create user</button>
+    </form>
+  </div>
+
+  <div class="panel camp-list">
+    <div style="overflow-x:auto">
+      <table class="leads-table">
+        <thead><tr><th>Email</th><th>Role</th><th>Workspace</th><th>Status</th><th></th></tr></thead>
         <tbody>
           {{range .Users}}
           <tr>
             <td>{{.Email}}</td>
             <td><span class="badge {{badgeClass .Role}}">{{.Role}}</span></td>
+            <td>
+              <form method="post" action="/users/{{.ID}}/workspace" class="inline" style="margin:0">
+                <select name="workspace_id" onchange="this.form.submit()">
+                  {{$uid := .WorkspaceID}}
+                  {{range $.Workspaces}}
+                  <option value="{{.ID}}" {{if eq .ID $uid}}selected{{end}}>{{.Name}}</option>
+                  {{end}}
+                </select>
+              </form>
+            </td>
             <td>{{if .Active}}active{{else}}disabled{{end}}</td>
             <td>
               <form method="post" action="/users/{{.ID}}/active" style="display:inline">
@@ -49,6 +79,8 @@
         </tbody>
       </table>
     </div>
+  </div>
+
   {{template "foot" .}}
 </body>
 </html>

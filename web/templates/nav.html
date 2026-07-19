@@ -92,9 +92,20 @@
       <div class="user-avatar" aria-hidden="true"><i class="fi fi-rr-user"></i></div>
       <div class="user-meta">
         <div class="user-email">{{.User.Email}}</div>
-        <div class="user-ws">Workspace {{.User.WorkspaceID}}</div>
+        <div class="user-ws" title="Workspace #{{.User.WorkspaceID}}">{{if .WorkspaceName}}{{.WorkspaceName}}{{else}}Workspace {{.User.WorkspaceID}}{{end}}</div>
       </div>
     </div>
+    {{if and .User.IsAdmin .AllWorkspaces}}
+    <form method="post" action="/workspaces/switch" class="ws-switch-form" title="Switch active workspace">
+      <label class="sr-only" for="ws-switch">Workspace</label>
+      <select id="ws-switch" name="workspace_id" onchange="this.form.submit()">
+        {{range .AllWorkspaces}}
+        <option value="{{.ID}}" {{if eq .ID $.User.WorkspaceID}}selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+      <input type="hidden" name="next" value="/">
+    </form>
+    {{end}}
     {{end}}
     <form method="post" action="/logout" class="logout-form">
       <button type="submit" class="secondary btn-block" title="Sign out">

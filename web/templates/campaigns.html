@@ -44,11 +44,15 @@
 
   {{if eq .CampaignCount 0}}
   <div class="panel empty-state">
-    <h2>No campaigns yet</h2>
-    <p class="muted">Seed Octavertex + RevNext playbooks (campaigns + templates only — no dummy leads), or create one below.</p>
-    <form method="post" action="/leads/seed-playbooks" class="row-actions" style="justify-content:center;margin:1rem 0 0">
-      <button type="submit">Seed playbooks</button>
-    </form>
+    <h2>No campaigns in {{if .WorkspaceName}}{{.WorkspaceName}}{{else}}this workspace{{end}}</h2>
+    <p class="muted">Seed brand playbooks (OVM → OctaVertex Media, RevNext → RevNext), seed into this workspace, or create a campaign below.</p>
+    <div class="row-actions" style="justify-content:center;margin:1rem 0 0">
+      <form method="post" action="/leads/seed-playbooks" style="margin:0">
+        <input type="hidden" name="mode" value="brand">
+        <button type="submit">Seed brand workspaces</button>
+      </form>
+      <a class="topbar-link" href="/workspaces" style="border-color:var(--border)">Workspaces</a>
+    </div>
   </div>
   {{end}}
 
@@ -187,11 +191,19 @@
   </div>
 
   <details class="fold panel muted-fold">
-    <summary>Load company playbooks</summary>
-    <p class="muted" style="margin:0.75rem 0">Inserts OVM Manufacturing Lead Platform (₹1.25L+), MVP packs, and RevNext hotel sequences. Skips names that already exist.</p>
-    <form method="post" action="/leads/seed-playbooks" class="row-actions">
-      <button type="submit">Seed playbooks</button>
-    </form>
+    <summary>Load playbooks</summary>
+    <p class="muted" style="margin:0.75rem 0">Brand seed puts OVM packs in <strong>OctaVertex Media</strong> and RevNext packs in <strong>RevNext</strong>. Or seed only into the workspace you are in now.</p>
+    <div class="row-actions">
+      <form method="post" action="/leads/seed-playbooks" style="margin:0">
+        <input type="hidden" name="mode" value="brand">
+        <button type="submit">Seed brand workspaces</button>
+      </form>
+      <form method="post" action="/leads/seed-playbooks" style="margin:0">
+        <input type="hidden" name="mode" value="all">
+        <button type="submit" class="secondary">Seed into current workspace</button>
+      </form>
+      <a class="topbar-link" href="/workspaces" style="border-color:var(--border)">Manage workspaces</a>
+    </div>
   </details>
   {{end}}
 

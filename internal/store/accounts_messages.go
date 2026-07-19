@@ -38,12 +38,16 @@ func (s *Store) Stats(admin bool, ownerID int64) (models.DashboardStats, error) 
 	return st, nil
 }
 
-func (s *Store) ListAccounts(admin bool, ownerID int64) ([]models.EmailAccount, error) {
+func (s *Store) ListAccounts(admin bool, ownerID, workspaceID int64) ([]models.EmailAccount, error) {
 	q := accountSelectSQL + ` FROM email_accounts WHERE 1=1`
 	var args []any
 	if !admin {
 		q += ` AND owner_id=?`
 		args = append(args, ownerID)
+	}
+	if workspaceID > 0 {
+		q += ` AND workspace_id=?`
+		args = append(args, workspaceID)
 	}
 	q += ` ORDER BY id`
 	rows, err := s.db.Query(q, args...)

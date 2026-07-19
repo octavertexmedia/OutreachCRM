@@ -117,7 +117,7 @@ func collectDocuments(st *store.Store) []Document {
 		}
 	}
 
-	camps, err := st.ListCampaigns(true, 0)
+	camps, err := st.ListCampaigns(true, 0, 0)
 	if err == nil {
 		for _, c := range camps {
 			docs = append(docs, DocFromCampaign(c))
@@ -174,7 +174,7 @@ func collectDocuments(st *store.Store) []Document {
 		}
 	}
 
-	accts, err := st.ListAccounts(true, 0)
+	accts, err := st.ListAccounts(true, 0, 0)
 	if err == nil {
 		for _, a := range accts {
 			docs = append(docs, DocFromAccount(a))

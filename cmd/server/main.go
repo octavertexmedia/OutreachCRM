@@ -44,6 +44,12 @@ func main() {
 		slog.Error("bootstrap admin", "err", err)
 		os.Exit(1)
 	}
+	if ovmID, revID, err := st.EnsureBrandWorkspaces(); err != nil {
+		slog.Error("brand workspaces", "err", err)
+		os.Exit(1)
+	} else {
+		slog.Info("workspaces ready", "default", "Default", "octavertex", ovmID, "revnext", revID)
+	}
 	_ = st.SetSetting("pii_retention_days", strconv.Itoa(cfg.PIIRetentionDays))
 
 	box, err := crypto.New(cfg.EncryptionKey)

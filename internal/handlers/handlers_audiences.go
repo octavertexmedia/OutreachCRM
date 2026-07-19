@@ -111,7 +111,7 @@ func (s *Server) audiencesGet(w http.ResponseWriter, r *http.Request) {
 	cats := s.Store.DistinctLeadValues(u.IsAdmin(), u.ID, u.WorkspaceID, "category")
 	srcs := s.Store.DistinctLeadValues(u.IsAdmin(), u.ID, u.WorkspaceID, "source")
 	sts := s.Store.DistinctLeadValues(u.IsAdmin(), u.ID, u.WorkspaceID, "enrichment_status")
-	camps, _ := s.Store.ListCampaigns(u.IsAdmin(), u.ID)
+	camps, _ := s.Store.ListCampaigns(u.IsAdmin(), u.ID, u.WorkspaceID)
 	s.render(w, "audiences.html", map[string]any{
 		"Audiences": list, "Nav": "audiences", "User": u,
 		"AudienceCount": len(list),
@@ -163,7 +163,7 @@ func (s *Server) audienceDetailGet(w http.ResponseWriter, r *http.Request) {
 	cats := s.Store.DistinctLeadValues(u.IsAdmin(), u.ID, u.WorkspaceID, "category")
 	srcs := s.Store.DistinctLeadValues(u.IsAdmin(), u.ID, u.WorkspaceID, "source")
 	sts := s.Store.DistinctLeadValues(u.IsAdmin(), u.ID, u.WorkspaceID, "enrichment_status")
-	camps, _ := s.Store.ListCampaigns(u.IsAdmin(), u.ID)
+	camps, _ := s.Store.ListCampaigns(u.IsAdmin(), u.ID, u.WorkspaceID)
 	s.render(w, "audience_detail.html", map[string]any{
 		"Audience": a, "Members": members, "LiveCount": liveCount,
 		"Nav": "audiences", "User": u,

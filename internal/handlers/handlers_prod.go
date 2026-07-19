@@ -15,6 +15,7 @@ import (
 	"github.com/manishkumar/outreachcrm/internal/dnscheck"
 	"github.com/manishkumar/outreachcrm/internal/models"
 	"github.com/manishkumar/outreachcrm/internal/search"
+	"github.com/manishkumar/outreachcrm/internal/store"
 	"github.com/manishkumar/outreachcrm/internal/totp"
 )
 
@@ -29,6 +30,9 @@ func (s *Server) registerProdRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /audit", auth.RequireAdmin(s.auditGet))
 	mux.HandleFunc("GET /workspaces", auth.RequireAdmin(s.workspacesGet))
 	mux.HandleFunc("POST /workspaces", auth.RequireAdmin(s.workspacesPost))
+	mux.HandleFunc("POST /workspaces/switch", auth.RequireAdmin(s.workspaceSwitch))
+	mux.HandleFunc("POST /workspaces/seed-brands", auth.RequireAdmin(s.workspacesSeedBrands))
+	mux.HandleFunc("POST /workspaces/{id}/seed", auth.RequireAdmin(s.workspaceSeedPack))
 	mux.HandleFunc("GET /templates", s.templatesGet)
 	mux.HandleFunc("POST /templates", s.templatesPost)
 	mux.HandleFunc("GET /domains", s.domainsGet)
@@ -141,20 +145,111 @@ func (s *Server) auditGet(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) workspacesGet(w http.ResponseWriter, r *http.Request) {
 	u := s.current(r)
+	_, _, _ = s.Store.EnsureBrandWorkspaces()
 	list, _ := s.Store.ListWorkspaces()
-	s.render(w, "workspaces.html", map[string]any{"Nav": "workspaces", "User": u, "Workspaces": list})
+	type wsView struct {
+		models.Workspace
+		Leads      int
+		Campaigns  int
+		Users      int
+		Templates  int
+		Audiences  int
+		Active     bool
+	}
+	var views []wsView
+	for _, ws := range list {
+		l, c, users, t, a := s.Store.WorkspaceStats(ws.ID)
+		views = append(views, wsView{
+			Workspace: ws, Leads: l, Campaigns: c, Users: users, Templates: t, Audiences: a,
+			Active: ws.ID == u.WorkspaceID,
+		})
+	}
+	s.render(w, "workspaces.html", map[string]any{
+		"Nav": "workspaces", "User": u, "Workspaces": views,
+		"Created":   r.URL.Query().Get("created") == "1",
+		"Switched":  r.URL.Query().Get("switched") == "1",
+		"Seeded":    r.URL.Query().Get("seeded") == "1",
+		"SeedTpl":   r.URL.Query().Get("templates"),
+		"SeedCamp":  r.URL.Query().Get("campaigns"),
+		"SeedLeads": r.URL.Query().Get("leads"),
+	})
 }
 
 func (s *Server) workspacesPost(w http.ResponseWriter, r *http.Request) {
 	u := s.current(r)
 	_ = r.ParseForm()
-	id, err := s.Store.CreateWorkspace(strings.TrimSpace(r.FormValue("name")))
+	name := strings.TrimSpace(r.FormValue("name"))
+	pack := strings.TrimSpace(r.FormValue("playbook"))
+	if pack == "" {
+		pack = store.PlaybookNone
+	}
+	id, templates, campaigns, err := s.Store.OnboardWorkspace(name, pack, u.ID)
+	if err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	s.Store.Audit(u.WorkspaceID, u.ID, "workspace.onboard", "workspace", strconv.FormatInt(id, 10),
+		fmt.Sprintf("pack=%s templates=%d campaigns=%d", pack, templates, campaigns))
+	// Switch admin session into the new tenant so they can start working immediately.
+	u.WorkspaceID = id
+	s.Auth.SetSession(w, u)
+	http.Redirect(w, r, fmt.Sprintf("/workspaces?created=1&templates=%d&campaigns=%d", templates, campaigns), http.StatusSeeOther)
+}
+
+func (s *Server) workspaceSwitch(w http.ResponseWriter, r *http.Request) {
+	u := s.current(r)
+	_ = r.ParseForm()
+	id, _ := strconv.ParseInt(r.FormValue("workspace_id"), 10, 64)
+	if _, err := s.Store.GetWorkspace(id); err != nil {
+		http.Error(w, "workspace not found", 404)
+		return
+	}
+	u.WorkspaceID = id
+	s.Auth.SetSession(w, u)
+	s.Store.Audit(id, u.ID, "workspace.switch", "workspace", strconv.FormatInt(id, 10), "")
+	next := strings.TrimSpace(r.FormValue("next"))
+	if next == "" || !strings.HasPrefix(next, "/") {
+		next = "/workspaces?switched=1"
+	} else if !strings.Contains(next, "?") {
+		next += "?switched=1"
+	}
+	http.Redirect(w, r, next, http.StatusSeeOther)
+}
+
+func (s *Server) workspacesSeedBrands(w http.ResponseWriter, r *http.Request) {
+	u := s.current(r)
+	ovmT, ovmC, revT, revC, purged, err := s.Store.SeedBrandPlaybooks(u.ID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	s.Store.Audit(u.WorkspaceID, u.ID, "workspace.create", "workspace", strconv.FormatInt(id, 10), "")
-	http.Redirect(w, r, "/workspaces", http.StatusSeeOther)
+	_ = s.Store.SetSetting("dummy_leads_purged", "1")
+	s.Store.Audit(u.WorkspaceID, u.ID, "playbooks.seed_brands", "workspace", "brand",
+		fmt.Sprintf("ovm_t=%d ovm_c=%d rev_t=%d rev_c=%d purged=%d", ovmT, ovmC, revT, revC, purged))
+	http.Redirect(w, r, fmt.Sprintf("/workspaces?seeded=1&templates=%d&campaigns=%d&leads=%d",
+		ovmT+revT, ovmC+revC, purged), http.StatusSeeOther)
+}
+
+func (s *Server) workspaceSeedPack(w http.ResponseWriter, r *http.Request) {
+	u := s.current(r)
+	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if _, err := s.Store.GetWorkspace(id); err != nil {
+		http.Error(w, "not found", 404)
+		return
+	}
+	_ = r.ParseForm()
+	pack := strings.TrimSpace(r.FormValue("playbook"))
+	if pack == "" {
+		pack = store.PlaybookAll
+	}
+	purged, templates, campaigns, err := s.Store.SeedCompanyPlaybooksFor(u.ID, id, pack)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	s.Store.Audit(id, u.ID, "playbooks.seed", "workspace", strconv.FormatInt(id, 10),
+		fmt.Sprintf("pack=%s %s", pack, store.SeedSummary(purged, templates, campaigns)))
+	http.Redirect(w, r, fmt.Sprintf("/workspaces?seeded=1&templates=%d&campaigns=%d&leads=%d", templates, campaigns, purged), http.StatusSeeOther)
 }
 
 func (s *Server) templatesGet(w http.ResponseWriter, r *http.Request) {

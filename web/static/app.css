@@ -1284,6 +1284,25 @@ a.dash-kpi:hover {
 }
 .aud-card .camp-card-title a:hover { color: var(--accent); }
 
+/* —— Workspace switcher —— */
+.ws-switch-form {
+  margin: 0.55rem 0 0.35rem;
+  padding: 0 0.35rem;
+}
+.ws-switch-form select {
+  width: 100%;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.2);
+  color: #e8f0ed;
+}
+.ws-active-row td {
+  background: rgba(15, 143, 123, 0.06);
+}
+
 /* —— Login —— */
 .login-wrap {
   min-height: 100vh;

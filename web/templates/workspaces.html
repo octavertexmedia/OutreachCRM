@@ -13,37 +13,108 @@
   <div class="page-hero">
     <div>
       <h1>Workspaces</h1>
-      <p class="sub" style="margin-bottom:0">Isolate data by team or client.</p>
+      <p class="sub" style="margin-bottom:0">Isolate OctaVertex Media, RevNext, and every client you onboard — switch to work inside one tenant.</p>
+    </div>
+    <div class="row-actions">
+      <form method="post" action="/workspaces/seed-brands" style="margin:0">
+        <button type="submit" class="secondary" title="Seed OVM packs into OctaVertex Media and RevNext packs into RevNext">Seed brand playbooks</button>
+      </form>
     </div>
   </div>
 
-  <div class="panel">
-    <form class="inline" method="post" action="/workspaces">
-      <label>Name<input name="name" required placeholder="Octavertex · Manufacturing"></label>
-      <button type="submit">Create</button>
+  {{if .Created}}
+  <div class="flash flash-ok" role="status">Workspace onboarded{{if .SeedTpl}} · {{.SeedTpl}} templates · {{.SeedCamp}} campaigns{{end}}. You are switched into it.</div>
+  {{else if .Switched}}
+  <div class="flash flash-ok" role="status">Switched to <strong>{{.WorkspaceName}}</strong>.</div>
+  {{else if .Seeded}}
+  <div class="flash flash-ok" role="status">Playbooks seeded — {{.SeedTpl}} templates · {{.SeedCamp}} campaigns{{if .SeedLeads}} · purged {{.SeedLeads}} dummy leads{{end}}.</div>
+  {{end}}
+
+  <details class="fold panel" open>
+    <summary>Onboard workspace</summary>
+    <p class="muted" style="margin:0.75rem 0 0.5rem;font-size:0.88rem">
+      Create a new tenant for a brand or client. Optionally seed a playbook pack. You can onboard as many as you need.
+    </p>
+    <form class="inline" method="post" action="/workspaces" style="margin-top:0.5rem">
+      <label>Name<input name="name" required placeholder="Acme Agency · Outreach"></label>
+      <label>Playbook pack
+        <select name="playbook">
+          <option value="none">Blank (no seed)</option>
+          <option value="ovm">OctaVertex Media packs</option>
+          <option value="revnext">RevNext packs</option>
+          <option value="all">All packs (OVM + RevNext)</option>
+        </select>
+      </label>
+      <button type="submit">Create &amp; switch</button>
     </form>
-  </div>
+  </details>
 
   <div class="panel camp-list">
     <div class="camp-list-head">
       <h2>All workspaces</h2>
+      <span class="muted">{{len .Workspaces}} total · active: {{.WorkspaceName}}</span>
     </div>
     <div style="overflow-x:auto">
       <table class="leads-table">
-        <thead><tr><th>Name</th><th>ID</th><th>Created</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Users</th>
+            <th>Leads</th>
+            <th>Campaigns</th>
+            <th>Templates</th>
+            <th>Audiences</th>
+            <th></th>
+          </tr>
+        </thead>
         <tbody>
         {{range .Workspaces}}
-        <tr>
-          <td><strong>{{.Name}}</strong></td>
-          <td class="muted">{{.ID}}</td>
-          <td class="muted">{{.CreatedAt.Format "2006-01-02"}}</td>
+        <tr {{if .Active}}class="ws-active-row"{{end}}>
+          <td>
+            <strong>{{.Name}}</strong>
+            {{if .Active}}<span class="badge done">active</span>{{end}}
+            <div class="muted" style="font-size:0.78rem">#{{.ID}} · {{.CreatedAt.Format "2006-01-02"}}</div>
+          </td>
+          <td>{{.Users}}</td>
+          <td>{{.Leads}}</td>
+          <td>{{.Campaigns}}</td>
+          <td>{{.Templates}}</td>
+          <td>{{.Audiences}}</td>
+          <td>
+            <div class="row-actions" style="justify-content:flex-end;flex-wrap:wrap">
+              {{if not .Active}}
+              <form method="post" action="/workspaces/switch" style="margin:0">
+                <input type="hidden" name="workspace_id" value="{{.ID}}">
+                <input type="hidden" name="next" value="/workspaces">
+                <button type="submit">Switch</button>
+              </form>
+              {{end}}
+              <form method="post" action="/workspaces/{{.ID}}/seed" style="margin:0" class="inline">
+                <select name="playbook" style="min-width:7rem">
+                  <option value="ovm">+ OVM</option>
+                  <option value="revnext">+ RevNext</option>
+                  <option value="all">+ All</option>
+                </select>
+                <button type="submit" class="secondary">Seed</button>
+              </form>
+            </div>
+          </td>
         </tr>
         {{else}}
-        <tr><td colspan="3" class="muted" style="padding:1.25rem">No workspaces yet.</td></tr>
+        <tr><td colspan="7" class="muted" style="padding:1.25rem">No workspaces yet.</td></tr>
         {{end}}
         </tbody>
       </table>
     </div>
+  </div>
+
+  <div class="panel">
+    <h2 class="dash-card-title">Brand tenants</h2>
+    <p class="muted" style="margin:0 0 0.75rem;font-size:0.9rem">
+      <strong>OctaVertex Media</strong> and <strong>RevNext</strong> are created automatically.
+      Use <em>Seed brand playbooks</em> to load OVM sequences into OctaVertex Media and RevNext sequences into RevNext — separately.
+      Assign senders on <a href="/users">Users</a> to the right workspace.
+    </p>
   </div>
 
   {{template "foot" .}}
