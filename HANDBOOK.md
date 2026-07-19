@@ -96,6 +96,7 @@ Dashboard shows the live funnel for steps 1–6.
 
 ## 8. Changelog
 
+- 2026-07-19 — Simplified console surfaces: landing, inbox, HITL, analytics, deliverability, domains, accounts, templates, workspaces — same page-hero / collapse pattern as campaigns & leads.
 - 2026-07-19 — `/leads` simplified; stop seeding dummy/ICP example.* leads; one-time purge on first leads view; CSV template is header-only.
 - 2026-07-19 — `/campaigns` simplified: compact list, collapsed sequence/enroll, seed only on empty or behind details; create defaults IST 9–18 · 20/day.
 - 2026-07-19 — Octavertex growth wired into product: seed campaign **OVM · Manufacturing Lead Platform (₹1.25L+)** (Day 0/2/5/10/21), Mfg templates + ICP leads, header-aware CSV import (`company/title/source/notes`), `/static/ovm-manufacturing-icp.csv` + `octavertex-growth/playbook/CRM-WIRING.md`.

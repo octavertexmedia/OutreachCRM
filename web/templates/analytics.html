@@ -1,25 +1,48 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Analytics · OutReachCRM</title>{{template "fonts" .}}
-  <link rel="stylesheet" href="/static/app.css"></head>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Analytics · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+</head>
 <body class="app-body">
   {{template "nav" .}}
-<h1>6 · Analytics</h1>
-<p class="sub">Pipeline results: send volume, reply rate, unsubscribes, A/B split.</p>
-<div class="grid">
-<div class="stat"><div class="n">{{.A.Sent}}</div><div class="l">Sent</div></div>
-<div class="stat"><div class="n">{{printf "%.1f" .A.ReplyRate}}%</div><div class="l">Reply rate (positive/sent)</div></div>
-<div class="stat"><div class="n">{{printf "%.1f" .A.UnsubRate}}%</div><div class="l">Unsub rate</div></div>
-<div class="stat"><div class="n">{{.A.Positive}}</div><div class="l">Positive replies</div></div>
-<div class="stat"><div class="n">{{.A.OpenHITL}}</div><div class="l">HITL open</div></div>
-<div class="stat"><div class="n">{{.A.Queued}}</div><div class="l">Queued</div></div>
-<div class="stat"><div class="n">{{.A.Enriched}}</div><div class="l">Enriched leads</div></div>
-<div class="stat"><div class="n">{{.A.WithDraft}}</div><div class="l">With AI drafts</div></div>
-<div class="stat"><div class="n">{{.A.Enrolled}}</div><div class="l">Enrolled in sequences</div></div>
-<div class="stat"><div class="n">{{.A.ByVariantA}}</div><div class="l">Variant A sent</div></div>
-<div class="stat"><div class="n">{{.A.ByVariantB}}</div><div class="l">Variant B sent</div></div>
-<div class="stat"><div class="n">{{.A.Dead}}</div><div class="l">Dead letters</div></div>
-</div>
-{{template "foot" .}}
+
+  <div class="page-hero">
+    <div>
+      <h1>Analytics</h1>
+      <p class="sub" style="margin-bottom:0">Sends, replies, and pipeline health.</p>
+    </div>
+    <div class="row-actions">
+      <a class="topbar-link" href="/campaigns" style="border-color:var(--border)">Campaigns</a>
+      <a class="topbar-link" href="/hitl" style="border-color:var(--border)">HITL</a>
+      <a class="topbar-link" href="/deliverability" style="border-color:var(--border)">Deliverability</a>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="stat"><div class="n">{{.A.Sent}}</div><div class="l">Sent</div></div>
+    <div class="stat"><div class="n">{{printf "%.1f" .A.ReplyRate}}%</div><div class="l">Reply rate</div></div>
+    <div class="stat"><div class="n">{{.A.Positive}}</div><div class="l">Positive</div></div>
+    <div class="stat"><div class="n">{{.A.OpenHITL}}</div><div class="l">HITL open</div></div>
+  </div>
+
+  <details class="fold panel" style="margin-top:1rem">
+    <summary>More metrics</summary>
+    <div class="grid" style="margin-top:0.85rem">
+      <div class="stat"><div class="n">{{.A.Queued}}</div><div class="l">Queued</div></div>
+      <div class="stat"><div class="n">{{.A.Enrolled}}</div><div class="l">Enrolled</div></div>
+      <div class="stat"><div class="n">{{.A.Enriched}}</div><div class="l">Enriched</div></div>
+      <div class="stat"><div class="n">{{.A.WithDraft}}</div><div class="l">With drafts</div></div>
+      <div class="stat"><div class="n">{{printf "%.1f" .A.UnsubRate}}%</div><div class="l">Unsub rate</div></div>
+      <div class="stat"><div class="n">{{.A.ByVariantA}}</div><div class="l">Variant A</div></div>
+      <div class="stat"><div class="n">{{.A.ByVariantB}}</div><div class="l">Variant B</div></div>
+      <div class="stat"><div class="n">{{.A.Dead}}</div><div class="l">Dead letters</div></div>
+    </div>
+  </details>
+
+  {{template "foot" .}}
 </body>
 </html>

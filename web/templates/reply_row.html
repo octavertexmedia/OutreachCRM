@@ -1,10 +1,13 @@
-<tr id="reply-{{.ID}}" {{if eq .Intent "positive"}}style="background:rgba(62,207,142,0.08)"{{end}}>
+<tr id="reply-{{.ID}}" {{if eq .Intent "positive"}}style="background:rgba(15,138,95,0.06)"{{end}}>
   <td>
     <span class="badge {{badgeClass .Intent}}">{{.Intent}}</span>
     <div><strong>{{if .LeadName}}{{.LeadName}}{{else}}—{{end}}</strong></div>
     <div class="muted">{{.FromEmail}}</div>
+    <details class="camp-fold nested" style="margin-top:0.35rem">
+      <summary>Body</summary>
+      <pre class="step-body" style="max-height:none;margin-top:0.35rem">{{.Body}}</pre>
+    </details>
   </td>
-  <td>{{.Subject}}</td>
-  <td><pre style="margin:0;white-space:pre-wrap;font:inherit;">{{.Body}}</pre></td>
-  <td class="muted">{{.CreatedAt.Format "2006-01-02 15:04"}}</td>
+  <td>{{if .Subject}}{{.Subject}}{{else}}—{{end}}</td>
+  <td class="muted">{{.CreatedAt.Format "01-02 15:04"}}</td>
 </tr>

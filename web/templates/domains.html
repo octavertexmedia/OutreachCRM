@@ -1,23 +1,57 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DNS · OutReachCRM</title>{{template "fonts" .}}
-  <link rel="stylesheet" href="/static/app.css"></head>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DNS · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+</head>
 <body class="app-body">
   {{template "nav" .}}
-<h1>Domain deliverability</h1>
-<p class="sub">SPF / DKIM / DMARC checks via DNS TXT lookups.</p>
-<div class="panel"><form class="inline" method="post" action="/domains/check">
-<label>Domain<input name="domain" required placeholder="example.com"></label>
-<button type="submit">Check</button>
-</form></div>
-<div class="panel"><table><thead><tr><th>Domain</th><th>SPF</th><th>DKIM</th><th>DMARC</th><th>Detail</th></tr></thead>
-<tbody>{{range .Checks}}<tr>
-<td>{{.Domain}}</td>
-<td>{{if .SPF}}✓{{else}}✗{{end}}</td>
-<td>{{if .DKIM}}✓{{else}}✗{{end}}</td>
-<td>{{if .DMARC}}✓{{else}}✗{{end}}</td>
-<td class="muted">{{.Detail}}</td>
-</tr>{{else}}<tr><td colspan="5" class="muted">No checks yet</td></tr>{{end}}</tbody></table></div>
-{{template "foot" .}}
+
+  <div class="page-hero">
+    <div>
+      <h1>DNS</h1>
+      <p class="sub" style="margin-bottom:0">SPF, DKIM, and DMARC for sending domains.</p>
+    </div>
+    <div class="row-actions">
+      <a class="topbar-link" href="/deliverability" style="border-color:var(--border)">Deliverability</a>
+      <a class="topbar-link" href="/accounts" style="border-color:var(--border)">Accounts</a>
+    </div>
+  </div>
+
+  <div class="panel">
+    <form class="inline" method="post" action="/domains/check">
+      <label>Domain<input name="domain" required placeholder="yourdomain.com"></label>
+      <button type="submit">Check</button>
+    </form>
+  </div>
+
+  <div class="panel camp-list">
+    <div class="camp-list-head">
+      <h2>Checks</h2>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="leads-table">
+        <thead><tr><th>Domain</th><th>SPF</th><th>DKIM</th><th>DMARC</th><th>Detail</th></tr></thead>
+        <tbody>
+        {{range .Checks}}
+        <tr>
+          <td><strong>{{.Domain}}</strong></td>
+          <td>{{if .SPF}}<span class="badge done">ok</span>{{else}}<span class="badge bad">fail</span>{{end}}</td>
+          <td>{{if .DKIM}}<span class="badge done">ok</span>{{else}}<span class="badge bad">fail</span>{{end}}</td>
+          <td>{{if .DMARC}}<span class="badge done">ok</span>{{else}}<span class="badge bad">fail</span>{{end}}</td>
+          <td class="muted">{{.Detail}}</td>
+        </tr>
+        {{else}}
+        <tr><td colspan="5" class="muted" style="padding:1.25rem">No checks yet — enter a domain above.</td></tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {{template "foot" .}}
 </body>
 </html>

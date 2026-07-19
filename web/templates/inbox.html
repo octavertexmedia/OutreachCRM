@@ -10,37 +10,53 @@
 </head>
 <body class="app-body">
   {{template "nav" .}}
-    <h1>5 · Inbox triage</h1>
-    <p class="sub">Paste a reply or sync via IMAP — AI classifies intent; positives go to HITL.</p>
 
-    <div class="panel">
-      <form hx-post="/inbox/classify" hx-target="#replies-body" hx-swap="afterbegin">
-        <div class="inline">
-          <label>From email<input name="from_email" type="email"></label>
-          <label>Lead name<input name="lead_name"></label>
-          <label>Subject<input name="subject"></label>
-        </div>
-        <label style="margin-top:0.65rem;">Reply body
-          <textarea name="body" required placeholder="Paste the prospect's reply…"></textarea>
-        </label>
-        <div style="margin-top:0.65rem;"><button type="submit">Classify & save</button></div>
-      </form>
+  <div class="page-hero">
+    <div>
+      <h1>Inbox</h1>
+      <p class="sub" style="margin-bottom:0">Classify replies. Positives go to HITL.</p>
     </div>
+    <div class="row-actions">
+      <a class="topbar-link" href="/hitl" style="border-color:var(--border)">HITL</a>
+      <a class="topbar-link" href="/accounts" style="border-color:var(--border)">Accounts</a>
+    </div>
+  </div>
 
-    <div class="panel">
-      <table>
+  <details class="fold panel" open>
+    <summary>Classify a reply</summary>
+    <form hx-post="/inbox/classify" hx-target="#replies-body" hx-swap="afterbegin" style="margin-top:0.85rem">
+      <div class="inline">
+        <label>From<input name="from_email" type="email" placeholder="prospect@company.com"></label>
+        <label>Lead name<input name="lead_name"></label>
+        <label>Subject<input name="subject"></label>
+      </div>
+      <label style="margin-top:0.65rem">Body
+        <textarea name="body" required placeholder="Paste the prospect’s reply…"></textarea>
+      </label>
+      <div style="margin-top:0.65rem"><button type="submit">Classify</button></div>
+    </form>
+  </details>
+
+  <div class="panel camp-list">
+    <div class="camp-list-head">
+      <h2>Classified</h2>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="leads-table">
         <thead>
-          <tr><th>Intent / who</th><th>Subject</th><th>Body</th><th>When</th></tr>
+          <tr><th>Who</th><th>Subject</th><th>When</th></tr>
         </thead>
         <tbody id="replies-body">
           {{range .Replies}}
             {{template "reply_row.html" .}}
           {{else}}
-            <tr id="empty-inbox"><td colspan="4" class="muted">No replies classified yet.</td></tr>
+            <tr id="empty-inbox"><td colspan="3" class="muted" style="padding:1.25rem">No replies yet — paste one above or sync IMAP.</td></tr>
           {{end}}
         </tbody>
       </table>
     </div>
+  </div>
+
   {{template "foot" .}}
 </body>
 </html>
