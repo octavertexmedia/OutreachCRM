@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
@@ -235,7 +234,7 @@ func (s *Server) leadsImport(w http.ResponseWriter, r *http.Request) {
 		if source == "" {
 			source = "csv"
 		}
-		_, _ = s.Store.CreateLead(models.Lead{
+		_, createErr := s.Store.CreateLead(models.Lead{
 			OwnerID: u.ID, WorkspaceID: u.WorkspaceID,
 			Name: name, Email: email,
 			Company: strings.TrimSpace(row["company"]),
@@ -246,7 +245,13 @@ func (s *Server) leadsImport(w http.ResponseWriter, r *http.Request) {
 			Notes:   strings.TrimSpace(row["notes"]),
 			EnrichmentStatus: "pending",
 		})
-		n++
+		if createErr == nil {
+			src := strings.ToLower(source)
+			if strings.Contains(src, "purchas") || strings.Contains(src, "bought") || strings.Contains(src, "scrape") {
+				s.Store.MarkPurchasedList(u.WorkspaceID, email)
+			}
+			n++
+		}
 	}
 	s.Store.Audit(u.WorkspaceID, u.ID, "lead.import", "lead", "", fmt.Sprintf("count=%d", n))
 	http.Redirect(w, r, fmt.Sprintf("/leads?imported=1&n=%d", n), http.StatusSeeOther)
@@ -390,69 +395,3 @@ func (s *Server) hitlSuggest(w http.ResponseWriter, r *http.Request) {
 		template.HTMLEscapeString(text))
 }
 
-func (s *Server) webhookPostmark(w http.ResponseWriter, r *http.Request) {
-	var payload map[string]any
-	_ = json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&payload)
-	email, _ := payload["Email"].(string)
-	recordType, _ := payload["RecordType"].(string)
-	reason := "bounce"
-	if strings.Contains(strings.ToLower(recordType), "spam") {
-		reason = "complaint"
-	}
-	if email != "" {
-		_ = s.Store.AddSuppressionWS(1, email, reason)
-		ev := "hard_bounce"
-		if reason == "complaint" {
-			ev = "complaint"
-		}
-		_ = s.Store.RecordRecipientEvent(1, email, ev)
-		_ = s.Store.PauseHotCampaigns(1, 2.0, 0.1)
-	}
-	w.WriteHeader(http.StatusOK)
-}
-
-func (s *Server) webhookSES(w http.ResponseWriter, r *http.Request) {
-	body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
-	var envelope map[string]any
-	_ = json.Unmarshal(body, &envelope)
-	// SNS wraps Message as string
-	msgStr, _ := envelope["Message"].(string)
-	var msg map[string]any
-	if msgStr != "" {
-		_ = json.Unmarshal([]byte(msgStr), &msg)
-	} else {
-		msg = envelope
-	}
-	notif, _ := msg["notificationType"].(string)
-	reason := "bounce"
-	if strings.EqualFold(notif, "Complaint") {
-		reason = "complaint"
-	}
-	if bounce, ok := msg["bounce"].(map[string]any); ok {
-		if recipients, ok := bounce["bouncedRecipients"].([]any); ok {
-			for _, r0 := range recipients {
-				if m, ok := r0.(map[string]any); ok {
-					if email, _ := m["emailAddress"].(string); email != "" {
-						_ = s.Store.AddSuppressionWS(1, email, reason)
-						_ = s.Store.RecordRecipientEvent(1, email, "hard_bounce")
-					}
-				}
-			}
-		}
-	}
-	if complaint, ok := msg["complaint"].(map[string]any); ok {
-		if recipients, ok := complaint["complainedRecipients"].([]any); ok {
-			for _, r0 := range recipients {
-				if m, ok := r0.(map[string]any); ok {
-					if email, _ := m["emailAddress"].(string); email != "" {
-						_ = s.Store.AddSuppressionWS(1, email, "complaint")
-						_ = s.Store.RecordRecipientEvent(1, email, "complaint")
-					}
-				}
-			}
-		}
-	}
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("ok"))
-	_ = time.Now()
-}

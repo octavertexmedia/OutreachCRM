@@ -86,17 +86,20 @@ type AuthStatus struct {
 }
 
 // Dashboard aggregates layer-15 metrics.
+// Reputation / inbox fields are proxies (bounce/complaint math + DNSBL cache), not Postmaster/SNDS.
 type Dashboard struct {
-	DomainReputation float64
-	IPReputation     float64 // heuristic from blacklists + complaint rate
+	DomainReputation float64 // proxy: 90 − bounce×5 − complaint×50
+	IPReputation     float64 // proxy: domain proxy blended with recent DNSBL listings
 	BounceRate       float64
 	SpamRate         float64
 	DeliveryRate     float64
-	InboxRate        float64 // proxy: 100 - bounce - spam
+	InboxRate        float64 // proxy: delivery − complaint×10 (not measured inbox placement)
 	Sent7d           int
 	Suppressed       int
 	DecisionsToday   int
 	DelayedToday     int
 	SuppressedToday  int
 	PausedCampaigns  int
+	DNSBLListed      int // recent sending IPs listed on DNSBL
+	MetricsAreProxy  bool
 }

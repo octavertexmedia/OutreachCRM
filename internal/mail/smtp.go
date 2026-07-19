@@ -2,6 +2,7 @@ package mail
 
 import (
 	"fmt"
+	"html"
 	"net/smtp"
 	"strings"
 
@@ -24,20 +25,45 @@ func sendMailPlainOrXOAUTH(addr string, account models.EmailAccount, accessToken
 	return smtp.SendMail(addr, auth, account.Email, []string{to}, msg)
 }
 
-func (s *Sender) sendSMTP(account models.EmailAccount, accessToken, smtpPassword, to, subject, body, messageID string) error {
+func (s *Sender) sendSMTP(account models.EmailAccount, accessToken, smtpPassword, to, subject, body, messageID, openPixelURL string) error {
 	addr := fmt.Sprintf("%s:%d", account.SMTPHost, account.SMTPPort)
+	boundary := "orc_" + strings.ReplaceAll(messageID, "@", "_")
+	if boundary == "orc_" {
+		boundary = "orc_boundary"
+	}
 	headers := []string{
 		"From: " + account.Email,
 		"To: " + to,
 		"Subject: " + subject,
 		"MIME-Version: 1.0",
-		"Content-Type: text/plain; charset=UTF-8",
+		"Content-Type: multipart/alternative; boundary=\"" + boundary + "\"",
 	}
 	if messageID != "" {
 		headers = append(headers, "Message-ID: <"+messageID+">")
 	}
-	msg := strings.Join(append(headers, "", body), "\r\n")
+	htmlBody := textToHTML(body, openPixelURL)
+	var parts strings.Builder
+	parts.WriteString("--" + boundary + "\r\n")
+	parts.WriteString("Content-Type: text/plain; charset=UTF-8\r\n\r\n")
+	parts.WriteString(body)
+	parts.WriteString("\r\n--" + boundary + "\r\n")
+	parts.WriteString("Content-Type: text/html; charset=UTF-8\r\n\r\n")
+	parts.WriteString(htmlBody)
+	parts.WriteString("\r\n--" + boundary + "--\r\n")
+	msg := strings.Join(append(headers, "", parts.String()), "\r\n")
 	return sendMailPlainOrXOAUTH(addr, account, accessToken, smtpPassword, to, []byte(msg))
+}
+
+func textToHTML(body, openPixelURL string) string {
+	esc := html.EscapeString(body)
+	esc = strings.ReplaceAll(esc, "\r\n", "\n")
+	esc = strings.ReplaceAll(esc, "\n", "<br>\n")
+	out := `<!DOCTYPE html><html><body style="font-family:sans-serif;font-size:14px;color:#12241f">` + esc
+	if openPixelURL != "" {
+		out += `<img src="` + html.EscapeString(openPixelURL) + `" width="1" height="1" alt="" style="display:none;border:0" />`
+	}
+	out += `</body></html>`
+	return out
 }
 
 type xoauth2Auth struct {

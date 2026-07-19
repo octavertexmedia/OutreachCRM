@@ -91,6 +91,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /metrics", s.metrics)
 	mux.HandleFunc("GET /u/{token}", s.unsubscribeGet)
 	mux.HandleFunc("POST /u/{token}", s.unsubscribePost)
+	mux.HandleFunc("GET /t/{token}", s.trackGet)
 
 	mux.HandleFunc("GET /login", s.loginGet)
 	mux.HandleFunc("POST /login", s.loginPost)
@@ -301,6 +302,8 @@ func (s *Server) leadsPost(w http.ResponseWriter, r *http.Request) {
 		t := time.Now().UTC()
 		consentAt = &t
 	}
+	email := strings.TrimSpace(r.FormValue("email"))
+	source := "manual"
 	id, err := s.Store.CreateLead(models.Lead{
 		OwnerID:       u.ID,
 		WorkspaceID:   u.WorkspaceID,
@@ -309,10 +312,10 @@ func (s *Server) leadsPost(w http.ResponseWriter, r *http.Request) {
 		Title:         strings.TrimSpace(r.FormValue("title")),
 		Website:       strings.TrimSpace(r.FormValue("website")),
 		Phone:         strings.TrimSpace(r.FormValue("phone")),
-		Email:         strings.TrimSpace(r.FormValue("email")),
+		Email:         email,
 		GoogleRating:  rating,
 		Notes:         strings.TrimSpace(r.FormValue("notes")),
-		Source:        "manual",
+		Source:        source,
 		ConsentAt:     consentAt,
 		ConsentSource: r.FormValue("consent_source"),
 	})
@@ -805,10 +808,15 @@ func (s *Server) inboxClassify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	from := r.FormValue("from_email")
-	if intent == "unsubscribe" && from != "" {
-		_ = s.Store.AddSuppression(from, "unsubscribe")
-	}
 	if from != "" {
+		wsID := s.Store.WorkspaceIDForEmail(from)
+		if intent == "unsubscribe" {
+			_ = s.Store.AddSuppressionWS(wsID, from, "unsubscribe")
+			_ = s.Store.RecordRecipientEvent(wsID, from, "unsubscribe")
+		}
+		if intent == "positive" || intent == "neutral" {
+			_ = s.Store.RecordRecipientEvent(wsID, from, "replied")
+		}
 		s.Store.MarkOutboundReplied(from)
 	}
 	oid := u.ID
@@ -881,8 +889,52 @@ func (s *Server) unsubscribePost(w http.ResponseWriter, r *http.Request) {
 	}
 	lead, err := s.Store.GetLead(leadID)
 	if err == nil && lead.Email != "" {
-		_ = s.Store.AddSuppression(lead.Email, "unsubscribe")
+		ws := lead.WorkspaceID
+		if ws == 0 {
+			ws = 1
+		}
+		_ = s.Store.AddSuppressionWS(ws, lead.Email, "unsubscribe")
+		_ = s.Store.RecordRecipientEvent(ws, lead.Email, "unsubscribe")
 	}
 	_ = s.Store.UnsubscribeCampaignLead(campID, leadID)
 	s.render(w, "unsubscribe.html", map[string]any{"Token": token, "Done": true})
+}
+
+// trackGet records open/click engagement for deliverability scoring.
+func (s *Server) trackGet(w http.ResponseWriter, r *http.Request) {
+	kind, leadID, _, dest, ok := s.Auth.VerifyTrack(r.PathValue("token"))
+	if !ok {
+		http.Error(w, "invalid token", 400)
+		return
+	}
+	lead, err := s.Store.GetLead(leadID)
+	email := ""
+	ws := int64(1)
+	if err == nil {
+		email = lead.Email
+		if lead.WorkspaceID > 0 {
+			ws = lead.WorkspaceID
+		}
+	}
+	if email != "" {
+		switch kind {
+		case "o":
+			_ = s.Store.RecordRecipientEvent(ws, email, "opened")
+		case "c":
+			_ = s.Store.RecordRecipientEvent(ws, email, "opened")
+			_ = s.Store.RecordRecipientEvent(ws, email, "clicked")
+		}
+	}
+	if kind == "c" && dest != "" && (strings.HasPrefix(dest, "http://") || strings.HasPrefix(dest, "https://")) {
+		http.Redirect(w, r, dest, http.StatusFound)
+		return
+	}
+	// 1×1 transparent GIF
+	w.Header().Set("Content-Type", "image/gif")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write([]byte{
+		0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00, 0xff, 0xff, 0xff,
+		0x00, 0x00, 0x00, 0x21, 0xf9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2c, 0x00, 0x00, 0x00, 0x00,
+		0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x02, 0x44, 0x01, 0x00, 0x3b,
+	})
 }

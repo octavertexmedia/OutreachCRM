@@ -23,31 +23,32 @@ func (s *Sender) client() *http.Client {
 	return s.HTTPClient
 }
 
-func (s *Sender) Send(account models.EmailAccount, accessToken, smtpPassword, espKey, to, subject, body, messageID string) error {
+func (s *Sender) Send(account models.EmailAccount, accessToken, smtpPassword, espKey, to, subject, body, messageID, openPixelURL string) error {
 	if s.DryRun {
 		return nil
 	}
 	switch account.Provider {
 	case models.ProviderPostmark:
-		return s.sendPostmark(espKey, account.Email, to, subject, body, messageID)
+		return s.sendPostmark(espKey, account.Email, to, subject, body, messageID, openPixelURL)
 	case models.ProviderSES:
 		if espKey != "" {
 			smtpPassword = espKey
 		}
-		return s.sendSMTP(account, "", smtpPassword, to, subject, body, messageID)
+		return s.sendSMTP(account, "", smtpPassword, to, subject, body, messageID, openPixelURL)
 	case models.ProviderGoogle, models.ProviderMicrosoft:
-		return s.sendSMTP(account, accessToken, "", to, subject, body, messageID)
+		return s.sendSMTP(account, accessToken, "", to, subject, body, messageID, openPixelURL)
 	default:
-		return s.sendSMTP(account, "", smtpPassword, to, subject, body, messageID)
+		return s.sendSMTP(account, "", smtpPassword, to, subject, body, messageID, openPixelURL)
 	}
 }
 
-func (s *Sender) sendPostmark(token, from, to, subject, body, messageID string) error {
+func (s *Sender) sendPostmark(token, from, to, subject, body, messageID, openPixelURL string) error {
 	payload := map[string]any{
 		"From":     from,
 		"To":       to,
 		"Subject":  subject,
 		"TextBody": body,
+		"HtmlBody": textToHTML(body, openPixelURL),
 	}
 	if messageID != "" {
 		payload["Headers"] = []map[string]string{{"Name": "Message-ID", "Value": "<" + messageID + ">"}}

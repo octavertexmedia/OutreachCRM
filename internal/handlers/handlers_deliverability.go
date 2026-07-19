@@ -19,7 +19,7 @@ func (s *Server) deliverabilityGet(w http.ResponseWriter, r *http.Request) {
 	bls, _ := s.Store.LatestBlacklistChecks(20)
 	s.render(w, "deliverability.html", map[string]any{
 		"Nav": "deliverability", "User": u, "Dash": dash, "Decisions": decisions, "Blacklists": bls,
-		"SMTPVerify": s.Cfg.SMTPVerify, "RequireAuth": s.Cfg.RequireSendAuth,
+		"SMTPVerify": s.Cfg.SMTPVerify, "RequireAuth": s.Cfg.RequireSendAuth, "BlacklistCheck": s.Cfg.BlacklistCheck,
 	})
 }
 

@@ -15,28 +15,18 @@ var providerScores = map[string]float64{
 	"att.net": 84, "verizon.net": 84, "sbcglobal.net": 82,
 }
 
-// ScoreDomain assigns layer-3 domain reputation 0–100.
+// ScoreDomain assigns layer-3 *recipient* domain reputation 0–100.
+// Do not pass sending-domain SPF/DKIM/DMARC here — that polluted bounce heuristics.
+// auth.Blacklisted is only used when the recipient domain itself was listed.
 func ScoreDomain(domain string, auth AuthStatus, mxHost string) float64 {
 	domain = strings.ToLower(domain)
 	if s, ok := providerScores[domain]; ok {
-		// still penalize bad auth on custom? providers always high
-		_ = auth
+		if auth.Blacklisted {
+			return s - 25
+		}
 		return s
 	}
-	score := 55.0
-	if auth.SPF {
-		score += 12
-	} else {
-		score -= 8
-	}
-	if auth.DKIM {
-		score += 10
-	}
-	if auth.DMARC {
-		score += 12
-	} else {
-		score -= 6
-	}
+	score := 70.0
 	if auth.Blacklisted {
 		score -= 40
 	}
@@ -52,8 +42,34 @@ func ScoreDomain(domain string, auth AuthStatus, mxHost string) float64 {
 	case "edu", "gov":
 		score += 15
 	}
-	if strings.Contains(mxHost, "protection.outlook") || strings.Contains(mxHost, "google") {
+	mxHost = strings.ToLower(mxHost)
+	if strings.Contains(mxHost, "protection.outlook") || strings.Contains(mxHost, "google") ||
+		strings.Contains(mxHost, "mimecast") || strings.Contains(mxHost, "ppops.net") {
 		score += 5
+	}
+	if score < 0 {
+		score = 0
+	}
+	if score > 100 {
+		score = 100
+	}
+	return score
+}
+
+// ScoreSendingAuth rates the sending domain's DNS auth posture 0–100 (dashboard / RequireAuth).
+func ScoreSendingAuth(auth AuthStatus) float64 {
+	score := 40.0
+	if auth.SPF {
+		score += 20
+	}
+	if auth.DKIM {
+		score += 20
+	}
+	if auth.DMARC {
+		score += 20
+	}
+	if auth.Blacklisted {
+		score -= 50
 	}
 	if score < 0 {
 		score = 0

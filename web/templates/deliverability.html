@@ -24,9 +24,11 @@
     </div>
   </div>
 
+  <p class="muted" style="margin:0 0 0.85rem;font-size:0.85rem">Reputation &amp; inbox figures are <strong>proxies</strong> from bounce/complaint rates + DNSBL cache — not Google/Microsoft Postmaster scores.</p>
+
   <div class="grid">
-    <div class="stat"><div class="n">{{printf "%.0f" .Dash.DomainReputation}}</div><div class="l">Domain rep</div></div>
-    <div class="stat"><div class="n">{{printf "%.1f" .Dash.DeliveryRate}}%</div><div class="l">Delivery</div></div>
+    <div class="stat"><div class="n">{{printf "%.0f" .Dash.DomainReputation}}</div><div class="l">Domain proxy</div></div>
+    <div class="stat"><div class="n">{{printf "%.1f" .Dash.DeliveryRate}}%</div><div class="l">Delivery (7d)</div></div>
     <div class="stat"><div class="n">{{printf "%.2f" .Dash.BounceRate}}%</div><div class="l">Bounce (7d)</div></div>
     <div class="stat"><div class="n">{{.Dash.Suppressed}}</div><div class="l">Suppressions</div></div>
   </div>
@@ -34,7 +36,8 @@
   <details class="fold panel" style="margin-top:1rem">
     <summary>More health</summary>
     <div class="grid" style="margin-top:0.85rem">
-      <div class="stat"><div class="n">{{printf "%.0f" .Dash.IPReputation}}</div><div class="l">IP rep</div></div>
+      <div class="stat"><div class="n">{{printf "%.0f" .Dash.IPReputation}}</div><div class="l">IP proxy (+DNSBL)</div></div>
+      <div class="stat"><div class="n">{{.Dash.DNSBLListed}}</div><div class="l">DNSBL hits (7d)</div></div>
       <div class="stat"><div class="n">{{printf "%.2f" .Dash.SpamRate}}%</div><div class="l">Complaint (7d)</div></div>
       <div class="stat"><div class="n">{{printf "%.1f" .Dash.InboxRate}}%</div><div class="l">Inbox proxy</div></div>
       <div class="stat"><div class="n">{{.Dash.Sent7d}}</div><div class="l">Sent (7d)</div></div>
@@ -51,7 +54,12 @@
       <label>Email<input name="email" type="email" required placeholder="prospect@company.com"></label>
       <button type="submit">Validate</button>
     </form>
-    <p class="muted" style="margin:0.5rem 0 0;font-size:0.82rem">SMTP verify {{if .SMTPVerify}}on{{else}}off{{end}} · Require auth {{if .RequireAuth}}on{{else}}off{{end}}</p>
+    <p class="muted" style="margin:0.5rem 0 0;font-size:0.82rem">
+      SMTP verify {{if .SMTPVerify}}on{{else}}off{{end}}
+      · Require auth {{if .RequireAuth}}on{{else}}off{{end}}
+      · DNSBL on send {{if .BlacklistCheck}}on{{else}}off{{end}}
+      · Validate here skips history/content (send path runs full gate)
+    </p>
     <div id="validate-out"></div>
   </details>
 

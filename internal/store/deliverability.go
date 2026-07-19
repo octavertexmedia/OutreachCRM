@@ -80,11 +80,68 @@ func (s *Store) RecordRecipientEvent(workspaceID int64, email, event string) err
 	return err
 }
 
-func (s *Store) MarkPurchasedList(email string) {
+func (s *Store) MarkPurchasedList(workspaceID int64, email string) {
 	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return
+	}
+	if workspaceID == 0 {
+		workspaceID = 1
+	}
 	t := fmtTime(now())
-	_, _ = s.db.Exec(`INSERT INTO recipient_stats(email, workspace_id, purchased_list, first_seen_at, last_event_at) VALUES(?,1,1,?,?)
-		ON CONFLICT(email) DO UPDATE SET purchased_list=1`, email, t, t)
+	_, _ = s.db.Exec(`INSERT INTO recipient_stats(email, workspace_id, purchased_list, first_seen_at, last_event_at) VALUES(?,?,1,?,?)
+		ON CONFLICT(email) DO UPDATE SET purchased_list=1, workspace_id=excluded.workspace_id`,
+		email, workspaceID, t, t)
+}
+
+// WorkspaceIDForEmail resolves workspace from recipient_stats, leads, or recent outbound.
+func (s *Store) WorkspaceIDForEmail(email string) int64 {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return 1
+	}
+	var ws int64
+	_ = s.db.QueryRow(`SELECT COALESCE(workspace_id,1) FROM recipient_stats WHERE lower(email)=lower(?)`, email).Scan(&ws)
+	if ws > 0 {
+		return ws
+	}
+	_ = s.db.QueryRow(`SELECT COALESCE(workspace_id,1) FROM leads WHERE lower(email)=lower(?) ORDER BY id DESC LIMIT 1`, email).Scan(&ws)
+	if ws > 0 {
+		return ws
+	}
+	_ = s.db.QueryRow(`SELECT COALESCE(c.workspace_id,1) FROM outbound_messages om
+		JOIN campaigns c ON c.id=om.campaign_id
+		WHERE lower(om.to_email)=lower(?) ORDER BY om.id DESC LIMIT 1`, email).Scan(&ws)
+	if ws > 0 {
+		return ws
+	}
+	return 1
+}
+
+// GetCachedBlacklist returns a DNSBL result fresher than maxAge.
+func (s *Store) GetCachedBlacklist(key string, maxAge time.Duration) (listed bool, zones []string, ok bool) {
+	var listedI int
+	var z, checked string
+	err := s.db.QueryRow(`SELECT listed, zones, checked_at FROM blacklist_checks WHERE key=?`, key).Scan(&listedI, &z, &checked)
+	if err != nil {
+		return false, nil, false
+	}
+	t := parseTime(checked)
+	if t.IsZero() || now().Sub(t) > maxAge {
+		return false, nil, false
+	}
+	if z != "" {
+		zones = strings.Split(z, ",")
+	}
+	return listedI == 1, zones, true
+}
+
+// CountRecentDNSBLListings counts listed IPs/hosts checked within maxAge.
+func (s *Store) CountRecentDNSBLListings(maxAge time.Duration) int {
+	since := fmtTime(now().Add(-maxAge))
+	var n int
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM blacklist_checks WHERE listed=1 AND checked_at >= ?`, since).Scan(&n)
+	return n
 }
 
 func (s *Store) LogDeliverabilityDecision(workspaceID, campaignID int64, d deliverability.Decision) {
@@ -196,6 +253,7 @@ func (s *Store) DeliverabilityDashboard(workspaceID int64) deliverability.Dashbo
 	if d.InboxRate < 0 {
 		d.InboxRate = 0
 	}
+	d.MetricsAreProxy = true
 	d.DomainReputation = 90 - h.BounceRatePct*5 - h.ComplaintPct*50
 	if d.DomainReputation < 0 {
 		d.DomainReputation = 0
@@ -203,7 +261,14 @@ func (s *Store) DeliverabilityDashboard(workspaceID int64) deliverability.Dashbo
 	if d.DomainReputation > 100 {
 		d.DomainReputation = 100
 	}
+	d.DNSBLListed = s.CountRecentDNSBLListings(7 * 24 * time.Hour)
 	d.IPReputation = d.DomainReputation
+	if d.DNSBLListed > 0 {
+		d.IPReputation -= float64(d.DNSBLListed) * 15
+		if d.IPReputation < 0 {
+			d.IPReputation = 0
+		}
+	}
 	_ = s.db.QueryRow(`SELECT COUNT(*) FROM suppressions WHERE workspace_id=?`, workspaceID).Scan(&d.Suppressed)
 	today := now().Format("2006-01-02")
 	_ = s.db.QueryRow(`SELECT COUNT(*) FROM deliverability_decisions WHERE workspace_id=? AND created_at LIKE ?`, workspaceID, today+"%").Scan(&d.DecisionsToday)

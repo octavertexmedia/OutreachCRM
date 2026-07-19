@@ -96,6 +96,7 @@ Dashboard shows the live funnel for steps 1–6.
 
 ## 8. Changelog
 
+- 2026-07-19 — Deliverability harden: DNSBL on send (24h cache), workspace-aware ESP webhooks + soft bounces, open/click tracking (`/t/…`), purchased-list flag, honest proxy labels on `/deliverability`.
 - 2026-07-19 — Simplified console surfaces: landing, inbox, HITL, analytics, deliverability, domains, accounts, templates, workspaces — same page-hero / collapse pattern as campaigns & leads.
 - 2026-07-19 — `/leads` simplified; stop seeding dummy/ICP example.* leads; one-time purge on first leads view; CSV template is header-only.
 - 2026-07-19 — `/campaigns` simplified: compact list, collapsed sequence/enroll, seed only on empty or behind details; create defaults IST 9–18 · 20/day.

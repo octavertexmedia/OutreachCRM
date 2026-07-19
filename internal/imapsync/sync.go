@@ -228,13 +228,15 @@ func (w *Worker) ingest(ctx context.Context, account models.EmailAccount, msg *i
 	if err != nil {
 		return err
 	}
-	if intent == "unsubscribe" && fromEmail != "" {
-		_ = w.Store.AddSuppression(fromEmail, "unsubscribe")
-		if leadID != nil {
-			// best-effort: unsubscribe across open campaigns by marking via suppress only
-		}
-	}
 	if fromEmail != "" {
+		ws := w.Store.WorkspaceIDForEmail(fromEmail)
+		if intent == "unsubscribe" {
+			_ = w.Store.AddSuppressionWS(ws, fromEmail, "unsubscribe")
+			_ = w.Store.RecordRecipientEvent(ws, fromEmail, "unsubscribe")
+		}
+		if intent == "positive" || intent == "neutral" {
+			_ = w.Store.RecordRecipientEvent(ws, fromEmail, "replied")
+		}
 		w.Store.MarkOutboundReplied(fromEmail)
 	}
 	return nil

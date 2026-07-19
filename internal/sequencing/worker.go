@@ -148,6 +148,7 @@ func (w *Worker) process(ctx context.Context, msg models.OutboundMessage) error 
 	}
 	subject, body = writing.PersonalizeLead(subject, body, lead)
 	if w.Auth != nil && w.PublicBaseURL != "" {
+		body = injectTracking(body, w.PublicBaseURL, w.Auth, msg.LeadID, msg.CampaignID)
 		tok := w.Auth.SignUnsubscribe(msg.LeadID, msg.CampaignID)
 		body += "\n\n---\nUnsubscribe: " + w.PublicBaseURL + "/u/" + tok
 	}
@@ -155,8 +156,10 @@ func (w *Worker) process(ctx context.Context, msg models.OutboundMessage) error 
 	// Email Deliverability Engine — gate before SMTP
 	hist := w.Store.GetRecipientHistory(msg.ToEmail)
 	src := strings.ToLower(lead.Source)
-	if strings.Contains(src, "purchas") || strings.Contains(src, "bought") || strings.Contains(src, "scrape") {
+	if strings.Contains(src, "purchas") || strings.Contains(src, "bought") || strings.Contains(src, "scrape") ||
+		strings.Contains(src, "bought-list") || strings.Contains(src, "list-buy") {
 		hist.PurchasedList = true
+		w.Store.MarkPurchasedList(camp.WorkspaceID, msg.ToEmail)
 	}
 	health := w.Store.WorkspaceHealth(camp.WorkspaceID)
 	health.CampaignPaused = camp.DeliverabilityPaused
@@ -166,18 +169,58 @@ func (w *Worker) process(ctx context.Context, msg models.OutboundMessage) error 
 			sendDomain = d
 		}
 	}
+	senderAuth := deliverability.AuthStatus{}
+	skipBL := true
+	if w.Deliverability != nil && w.Deliverability.Cfg.BlacklistCheck && sendDomain != "" {
+		// Prefer 24h cache; otherwise probe sending IPs (bounded) and persist.
+		blKey := sendDomain
+		if listed, zones, ok := w.Store.GetCachedBlacklist(blKey, 24*time.Hour); ok {
+			senderAuth.Blacklisted = listed
+			senderAuth.Zones = zones
+		} else {
+			blCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+			ips := deliverability.ResolveSendingIPs(sendDomain)
+			if len(ips) == 0 {
+				ips = deliverability.ResolveSendingIPs("mail." + sendDomain)
+			}
+			anyListed := false
+			var allZones []string
+			for _, ip := range ips {
+				if listed, zones, ok := w.Store.GetCachedBlacklist(ip, 24*time.Hour); ok {
+					if listed {
+						anyListed = true
+						allZones = append(allZones, zones...)
+					}
+					continue
+				}
+				listed, zones := deliverability.CheckBlacklists(blCtx, ip)
+				w.Store.SaveBlacklistCheck(ip, listed, zones)
+				if listed {
+					anyListed = true
+					allZones = append(allZones, zones...)
+				}
+			}
+			senderAuth.Blacklisted = anyListed
+			senderAuth.Zones = allZones
+			w.Store.SaveBlacklistCheck(blKey, anyListed, allZones)
+			cancel()
+		}
+		skipBL = true // already applied via SenderAuth
+	}
 	decision := w.Deliverability.Evaluate(ctx, deliverability.Input{
-		Email:          msg.ToEmail,
-		Subject:        subject,
-		Body:           body,
-		SendingDomain:  sendDomain,
-		CampaignID:     camp.ID,
-		WorkspaceID:    camp.WorkspaceID,
-		Recipient:      hist,
+		Email:           msg.ToEmail,
+		Subject:         subject,
+		Body:            body,
+		SendingDomain:   sendDomain,
+		AccountWarmup:   account.WarmupEnabled,
+		CampaignID:      camp.ID,
+		WorkspaceID:     camp.WorkspaceID,
+		Recipient:       hist,
 		WorkspaceHealth: health,
-		Now:            time.Now().UTC(),
-		SkipBlacklist:  true, // DNSBL is on-demand via /deliverability (too slow for send hot path)
-		SkipSMTPVerify: !w.Deliverability.Cfg.SMTPVerify,
+		SenderAuth:      senderAuth,
+		Now:             time.Now().UTC(),
+		SkipBlacklist:   skipBL,
+		SkipSMTPVerify:  w.Deliverability == nil || !w.Deliverability.Cfg.SMTPVerify,
 	})
 	w.Store.LogDeliverabilityDecision(camp.WorkspaceID, camp.ID, decision)
 
@@ -222,7 +265,11 @@ func (w *Worker) process(ctx context.Context, msg models.OutboundMessage) error 
 		mid = newMessageID()
 	}
 
-	if err := w.Sender.Send(account, access, smtpPass, espKey, msg.ToEmail, subject, body, mid); err != nil {
+	openPixel := ""
+	if w.Auth != nil && w.PublicBaseURL != "" {
+		openPixel = strings.TrimRight(w.PublicBaseURL, "/") + "/t/" + w.Auth.SignTrack("o", msg.LeadID, msg.CampaignID, "")
+	}
+	if err := w.Sender.Send(account, access, smtpPass, espKey, msg.ToEmail, subject, body, mid, openPixel); err != nil {
 		backoff := time.Duration(1<<minInt(msg.Attempts, 4)) * time.Minute
 		return w.Store.FailMessageRetry(msg.ID, err.Error(), w.MaxAttempts, backoff)
 	}
@@ -236,6 +283,48 @@ func (w *Worker) process(ctx context.Context, msg models.OutboundMessage) error 
 	w.Store.RecordISPSend(camp.WorkspaceID, isp)
 	_ = w.Store.RecordRecipientEvent(camp.WorkspaceID, msg.ToEmail, "sent")
 	return w.Store.ScheduleNextStep(msg)
+}
+
+// injectTracking rewrites http(s) links to click trackers (feeds engagement scoring).
+func injectTracking(body, base string, a *auth.Manager, leadID, campaignID int64) string {
+	if a == nil || base == "" {
+		return body
+	}
+	base = strings.TrimRight(base, "/")
+	var b strings.Builder
+	rest := body
+	for {
+		i := strings.Index(rest, "http://")
+		j := strings.Index(rest, "https://")
+		start := -1
+		if i >= 0 && (j < 0 || i < j) {
+			start = i
+		} else if j >= 0 {
+			start = j
+		}
+		if start < 0 {
+			b.WriteString(rest)
+			break
+		}
+		b.WriteString(rest[:start])
+		rest = rest[start:]
+		end := strings.IndexAny(rest, " \t\r\n<>\"')")
+		url := rest
+		if end >= 0 {
+			url = rest[:end]
+			rest = rest[end:]
+		} else {
+			rest = ""
+		}
+		// Don't re-wrap our own track/unsub URLs.
+		if strings.HasPrefix(url, base+"/t/") || strings.HasPrefix(url, base+"/u/") {
+			b.WriteString(url)
+			continue
+		}
+		tok := a.SignTrack("c", leadID, campaignID, url)
+		b.WriteString(base + "/t/" + tok)
+	}
+	return b.String()
 }
 
 func (w *Worker) resolveCredentials(ctx context.Context, account *models.EmailAccount) (access, smtpPass, espKey string, err error) {

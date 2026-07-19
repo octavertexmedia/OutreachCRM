@@ -130,6 +130,9 @@ func (e *Engine) Evaluate(ctx context.Context, in Input) Decision {
 		auth.Detail = dc.Detail
 	}
 	d.AuthOK = auth.SPF && auth.DKIM && auth.DMARC
+	if auth.Blacklisted && len(auth.Zones) > 0 {
+		d.Reasons = append(d.Reasons, "sending IP on DNSBL: "+strings.Join(auth.Zones, ","))
+	}
 	if e.Cfg.RequireAuth && in.SendingDomain != "" && !d.AuthOK {
 		d.Action = ActionDelay
 		until := now.Add(2 * time.Hour)
@@ -153,7 +156,8 @@ func (e *Engine) Evaluate(ctx context.Context, in Input) Decision {
 		}
 	}
 
-	d.DomainScore = ScoreDomain(domain, auth, mxHost)
+	// Recipient domain score must not include sending-domain SPF/DKIM/DMARC.
+	d.DomainScore = ScoreDomain(domain, AuthStatus{}, mxHost)
 	d.RecipientScore = ScoreRecipient(in.Recipient)
 
 	// Layer 2 — SMTP verify (optional)
@@ -209,6 +213,13 @@ func (e *Engine) Evaluate(ctx context.Context, in Input) Decision {
 	if in.Recipient.SoftBounces >= 3 {
 		d.Action = ActionSuppress
 		d.Reasons = append(d.Reasons, "multiple soft bounces")
+		return d
+	}
+	if in.AccountWarmup && d.ContentRisk >= 45 {
+		d.Action = ActionDelay
+		until := now.Add(4 * time.Hour)
+		d.DelayUntil = &until
+		d.Reasons = append(d.Reasons, "warmup account — cooler content recommended")
 		return d
 	}
 	if d.BounceProb >= e.Cfg.MaxBounceProb {

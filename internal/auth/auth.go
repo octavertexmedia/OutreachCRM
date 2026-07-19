@@ -127,6 +127,7 @@ func (m *Manager) Middleware(next http.Handler) http.Handler {
 			path == "/apple-touch-icon.png" || path == "/site.webmanifest" ||
 			path == "/web-app-manifest-192x192.png" || path == "/web-app-manifest-512x512.png" ||
 			strings.HasPrefix(path, "/u/") ||
+			strings.HasPrefix(path, "/t/") ||
 			strings.HasPrefix(path, "/webhooks/") {
 			next.ServeHTTP(w, r)
 			return
@@ -233,4 +234,54 @@ func (m *Manager) VerifyUnsubscribe(token string) (leadID, campaignID int64, ok 
 		return 0, 0, false
 	}
 	return leadID, campaignID, true
+}
+
+// SignTrack signs open (o) or click (c) tokens. dest is empty for opens.
+func (m *Manager) SignTrack(kind string, leadID, campaignID int64, dest string) string {
+	if kind != "o" && kind != "c" {
+		kind = "o"
+	}
+	payload := kind + ":" + strconv.FormatInt(leadID, 10) + ":" + strconv.FormatInt(campaignID, 10) + ":" + base64.RawURLEncoding.EncodeToString([]byte(dest))
+	mac := hmac.New(sha256.New, m.Secret)
+	mac.Write([]byte(payload))
+	sig := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	return base64.RawURLEncoding.EncodeToString([]byte(payload)) + "." + sig
+}
+
+// VerifyTrack returns kind (o|c), lead, campaign, and optional click destination.
+func (m *Manager) VerifyTrack(token string) (kind string, leadID, campaignID int64, dest string, ok bool) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 2 {
+		return "", 0, 0, "", false
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return "", 0, 0, "", false
+	}
+	mac := hmac.New(sha256.New, m.Secret)
+	mac.Write(raw)
+	expect := base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(expect), []byte(parts[1])) {
+		return "", 0, 0, "", false
+	}
+	fields := strings.SplitN(string(raw), ":", 4)
+	if len(fields) != 4 {
+		return "", 0, 0, "", false
+	}
+	kind = fields[0]
+	leadID, err = strconv.ParseInt(fields[1], 10, 64)
+	if err != nil {
+		return "", 0, 0, "", false
+	}
+	campaignID, err = strconv.ParseInt(fields[2], 10, 64)
+	if err != nil {
+		return "", 0, 0, "", false
+	}
+	if fields[3] != "" {
+		b, err := base64.RawURLEncoding.DecodeString(fields[3])
+		if err == nil {
+			dest = string(b)
+		}
+	}
+	return kind, leadID, campaignID, dest, true
 }
