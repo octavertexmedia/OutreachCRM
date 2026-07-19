@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Search · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body class="app-shell">
+{{template "nav" .}}
+
+<header class="page-hero">
+  <div>
+    <p class="eyebrow">Find anything</p>
+    <h1>Search</h1>
+    <p class="sub muted">Hybrid search (dense vectors + full-text) across leads, campaigns, inbox, queue, templates, and accounts.</p>
+  </div>
+</header>
+
+<form class="search-page-form" method="get" action="/search" role="search">
+  <label class="sr-only" for="search-q">Search</label>
+  <input id="search-q" type="search" name="q" value="{{.Q}}" placeholder="Name, email, company, subject…" autofocus
+    hx-get="/search/results" hx-trigger="keyup changed delay:280ms, search" hx-target="#search-results" hx-include="this">
+  <button type="submit">Search</button>
+</form>
+
+<p class="muted search-meta">Index: {{.Backend}}</p>
+
+<div id="search-results">
+  {{template "search_results.html" .}}
+</div>
+
+{{if and .User .User.IsAdmin}}
+<details class="fold panel muted-fold">
+  <summary>Admin</summary>
+  <form method="post" action="/search/reindex" style="margin-top:0.75rem">
+    <button type="submit" class="secondary">Rebuild search index</button>
+  </form>
+</details>
+{{end}}
+
+{{template "foot" .}}
+</body>
+</html>

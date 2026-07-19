@@ -2,7 +2,7 @@
 
 ## 1. What this is
 
-Production-lean outreach CRM on one Go binary (≤30 MB): multi-user workspaces, TOTP 2FA, encrypted secrets, OAuth/ESP send, IMAP + HITL inbox, deliverability DNS checks, durable multi-instance-aware queue, GDPR export/delete, backups, and ops endpoints.
+Production-lean outreach CRM on one Go binary (≤80 MB with Zvec): multi-user workspaces, TOTP 2FA, encrypted secrets, OAuth/ESP send, IMAP + HITL inbox, deliverability DNS checks, durable multi-instance-aware queue, GDPR export/delete, backups, hybrid global search, and ops endpoints.
 
 ## 2. Who uses it
 
@@ -21,7 +21,8 @@ Bootstrap admin from `BOOTSTRAP_ADMIN_*` when users table is empty. Users belong
 | Auth | bcrypt + TOTP 2FA + HMAC cookies; API rate limit |
 | Secrets | OpenBao at **https://secrets.revnext.in/** (AppRole → KV); AES-GCM in-app with `ENCRYPTION_KEY` |
 | Email | SMTP / Gmail+Outlook OAuth XOAUTH2 / Postmark HTTP / SES SMTP |
-| Size | `make build-size` ≤ 30 MB |
+| Search | [Alibaba Zvec](https://github.com/alibaba/zvec) hybrid: HNSW dense + native FTS + MultiQuery RRF (`make build`); lite SQLite FTS5 via `make build-lite` |
+| Size | `make build-size` ≤ 80 MB (Go binary; ship `libzvec_c_api` alongside) |
 | Prod URL | **https://outreach.vertexcrm.in/** — Contabo VPS with AgencyCRM (`:8003`, `/var/www/outreachcrm`) |
 
 **Production:** Docker Compose + Nginx + Let’s Encrypt. CI: `.github/workflows/deploy.yml`. Runbook: `deploy/DEPLOY.md`. OpenBao KV + AppRole: `deploy/OPENBAO.md`.
@@ -68,9 +69,12 @@ Dashboard shows the live funnel for steps 1–6.
 | GDPR export/delete + consent fields | Yes |
 | CSV import, analytics, templates | Yes |
 | **Email Deliverability Engine** | Yes — `/deliverability` + pre-send gate |
+| **Global search** | Yes — `/search` + topbar; Zvec hybrid (HNSW + FTS + RRF) by default |
 
 ## 5. Key routes
 
+- `/search`, `GET /search/results` — global search (leads, campaigns, inbox, queue, templates, accounts)
+- `POST /search/reindex` — admin rebuild of the search index
 - `/deliverability` — reputation dashboard, validate, DNSBL, decision log
 - `/security` — TOTP; `/privacy/export`
 - `/hitl` — positive reply queue
@@ -81,6 +85,7 @@ Dashboard shows the live funnel for steps 1–6.
 
 ## 6. Gotchas
 
+- **Global search / Zvec:** Default `make build` / `make run` use [Alibaba Zvec](https://github.com/alibaba/zvec) hybrid retrieval — dense HNSW (`embedding`, 1536-d cosine) + native FTS on `content` fused with MultiQuery RRF. Embeddings use `OPENAI_EMBED_MODEL` (default `text-embedding-3-small`) when `OPENAI_API_KEY` is set; otherwise a local hash embedder keeps hybrid online. Index under `DATA_DIR/search/zvec/`. Size cap is 80 MB for the Go binary; ship `libzvec_c_api` next to it. `make build-lite` is SQLite FTS5-only (no CGO). Admins: `POST /search/reindex`.
 - **Postgres:** intentionally not dual-driver (size/dialect). Production data path is SQLite + WAL + scheduled snapshots. Mirror to object storage via your VPS cron if needed.
 - **SSO:** TOTP 2FA yes; enterprise SAML/OIDC IdP login not bundled (OAuth is for *mail*, not user login).
 - **KMS / secrets:** production loads `ENCRYPTION_KEY` (and peers) from OpenBao KV via AppRole; app still decrypts locally with AES-GCM (not cloud KMS).
@@ -96,6 +101,8 @@ Dashboard shows the live funnel for steps 1–6.
 
 ## 8. Changelog
 
+- 2026-07-19 — Global search is full Zvec hybrid (HNSW + FTS + MultiQuery RRF); size cap raised to 80 MB; OpenAI embeddings with hash fallback; `make build-lite` for pure-Go FTS5 only.
+- 2026-07-19 — Global search: topbar + `/search` over leads/campaigns/inbox/queue/templates/accounts.
 - 2026-07-19 — Deliverability harden: DNSBL on send (24h cache), workspace-aware ESP webhooks + soft bounces, open/click tracking (`/t/…`), purchased-list flag, honest proxy labels on `/deliverability`.
 - 2026-07-19 — Simplified console surfaces: landing, inbox, HITL, analytics, deliverability, domains, accounts, templates, workspaces — same page-hero / collapse pattern as campaigns & leads.
 - 2026-07-19 — `/leads` simplified; stop seeding dummy/ICP example.* leads; one-time purge on first leads view; CSV template is header-only.

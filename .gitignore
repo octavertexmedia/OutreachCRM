@@ -3,3 +3,7 @@ data/
 .env
 *.db
 .DS_Store
+third_party/zvec-go/
+.tmp-zvec-go/
+go.work
+go.work.sum

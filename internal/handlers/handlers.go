@@ -21,6 +21,7 @@ import (
 	"github.com/manishkumar/outreachcrm/internal/inbox"
 	"github.com/manishkumar/outreachcrm/internal/models"
 	"github.com/manishkumar/outreachcrm/internal/oauth"
+	"github.com/manishkumar/outreachcrm/internal/search"
 	"github.com/manishkumar/outreachcrm/internal/store"
 	"github.com/manishkumar/outreachcrm/internal/writing"
 )
@@ -35,6 +36,7 @@ type Server struct {
 	Writing        *writing.Service
 	Inbox          *inbox.Service
 	Deliverability *deliverability.Engine
+	Search         *search.Service
 	Templates      *template.Template
 	Static         fs.FS
 	ready          atomic.Bool
@@ -42,13 +44,15 @@ type Server struct {
 }
 
 func New(st *store.Store, a *auth.Manager, box *crypto.Box, oa *oauth.Managers, cfg config.Config,
-	en *enrichment.Service, wr *writing.Service, in *inbox.Service, deliv *deliverability.Engine, webFS fs.FS) (*Server, error) {
+	en *enrichment.Service, wr *writing.Service, in *inbox.Service, deliv *deliverability.Engine,
+	searchSvc *search.Service, webFS fs.FS) (*Server, error) {
 	funcs := template.FuncMap{
 		"issues": func(s string) []string {
 			var out []string
 			_ = json.Unmarshal([]byte(s), &out)
 			return out
 		},
+		"kindLabel": search.KindLabel,
 		"badgeClass": func(status string) string {
 			switch status {
 			case "done", "positive", "active", "sent", "admin":
@@ -73,7 +77,7 @@ func New(st *store.Store, a *auth.Manager, box *crypto.Box, oa *oauth.Managers, 
 	s := &Server{
 		Store: st, Auth: a, Box: box, OAuth: oa, Cfg: cfg,
 		Enrichment: en, Writing: wr, Inbox: in, Deliverability: deliv,
-		Templates: tmpl, Static: staticFS,
+		Search: searchSvc, Templates: tmpl, Static: staticFS,
 	}
 	s.ready.Store(true)
 	return s, nil
@@ -130,6 +134,7 @@ func (s *Server) Routes() http.Handler {
 
 	s.registerProdRoutes(mux)
 	s.registerPanelRoutes(mux)
+	s.registerSearchRoutes(mux)
 
 	return s.wrap(s.Auth.Middleware(mux))
 }
@@ -324,6 +329,9 @@ func (s *Server) leadsPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Store.Audit(u.WorkspaceID, u.ID, "lead.create", "lead", strconv.FormatInt(id, 10), "")
+	if lead, err := s.Store.GetLead(id); err == nil {
+		s.indexDocs(search.DocFromLead(lead))
+	}
 	http.Redirect(w, r, "/leads", http.StatusSeeOther)
 }
 
@@ -559,6 +567,9 @@ func (s *Server) campaignsPost(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, st := range defaults {
 		_, _ = s.Store.AddStep(st)
+	}
+	if camp, err := s.Store.GetCampaign(id); err == nil {
+		s.indexDocs(search.DocFromCampaign(camp))
 	}
 	http.Redirect(w, r, "/campaigns", http.StatusSeeOther)
 }

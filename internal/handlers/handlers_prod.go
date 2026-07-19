@@ -14,6 +14,7 @@ import (
 	"github.com/manishkumar/outreachcrm/internal/auth"
 	"github.com/manishkumar/outreachcrm/internal/dnscheck"
 	"github.com/manishkumar/outreachcrm/internal/models"
+	"github.com/manishkumar/outreachcrm/internal/search"
 	"github.com/manishkumar/outreachcrm/internal/totp"
 )
 
@@ -165,16 +166,19 @@ func (s *Server) templatesGet(w http.ResponseWriter, r *http.Request) {
 func (s *Server) templatesPost(w http.ResponseWriter, r *http.Request) {
 	u := s.current(r)
 	_ = r.ParseForm()
-	_, err := s.Store.CreateTemplate(models.EmailTemplate{
+	tpl := models.EmailTemplate{
 		WorkspaceID: u.WorkspaceID,
 		Name:        r.FormValue("name"),
 		Subject:     r.FormValue("subject"),
 		Body:        r.FormValue("body"),
-	})
+	}
+	id, err := s.Store.CreateTemplate(tpl)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	tpl.ID = id
+	s.indexDocs(search.DocFromTemplate(tpl))
 	http.Redirect(w, r, "/templates", http.StatusSeeOther)
 }
 

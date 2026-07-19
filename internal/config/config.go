@@ -22,6 +22,7 @@ type Config struct {
 	OpenAIAPIKey           string
 	OpenAIBaseURL          string
 	OpenAIModel            string
+	OpenAIEmbedModel       string
 	WorkerInterval         time.Duration
 	IMAPInterval           time.Duration
 	DryRunSMTP             bool
@@ -63,6 +64,7 @@ func Load() Config {
 		OpenAIAPIKey:           env("OPENAI_API_KEY", ""),
 		OpenAIBaseURL:          strings.TrimRight(env("OPENAI_BASE_URL", "https://api.openai.com/v1"), "/"),
 		OpenAIModel:            env("OPENAI_MODEL", "gpt-4o-mini"),
+		OpenAIEmbedModel:       env("OPENAI_EMBED_MODEL", "text-embedding-3-small"),
 		WorkerInterval:         envDuration("WORKER_INTERVAL", 30*time.Second),
 		IMAPInterval:           envDuration("IMAP_INTERVAL", 2*time.Minute),
 		DryRunSMTP:             envBool("DRY_RUN_SMTP", false),

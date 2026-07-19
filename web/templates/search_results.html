@@ -1,0 +1,36 @@
+{{define "search_results.html"}}
+{{if not .Q}}
+<div class="empty-state search-empty">
+  <p class="muted">Type to search across your workspace.</p>
+</div>
+{{else if not .Results}}
+<div class="empty-state search-empty">
+  <p>No matches for <strong>{{.Q}}</strong>.</p>
+</div>
+{{else}}
+<ul class="search-hit-list" role="list">
+  {{range .Results}}
+  <li class="search-hit">
+    <a href="{{.Href}}" class="search-hit-link">
+      <span class="search-hit-kind">{{kindLabel .Kind}}</span>
+      <span class="search-hit-title">{{.Title}}</span>
+      {{if .Snippet}}<span class="search-hit-snip muted">{{.Snippet}}</span>{{end}}
+    </a>
+    {{if eq .Kind "lead"}}
+    <button type="button" class="secondary search-hit-inspect"
+      hx-get="/panel/leads/{{.EntityID}}" hx-target="#inspector-body" hx-swap="innerHTML"
+      onclick="document.body.classList.add('inspector-open');document.body.classList.remove('inspector-closed')">Inspect</button>
+    {{else if eq .Kind "campaign"}}
+    <button type="button" class="secondary search-hit-inspect"
+      hx-get="/panel/campaigns/{{.EntityID}}" hx-target="#inspector-body" hx-swap="innerHTML"
+      onclick="document.body.classList.add('inspector-open');document.body.classList.remove('inspector-closed')">Inspect</button>
+    {{else if eq .Kind "queue"}}
+    <button type="button" class="secondary search-hit-inspect"
+      hx-get="/panel/queue/{{.EntityID}}" hx-target="#inspector-body" hx-swap="innerHTML"
+      onclick="document.body.classList.add('inspector-open');document.body.classList.remove('inspector-closed')">Inspect</button>
+    {{end}}
+  </li>
+  {{end}}
+</ul>
+{{end}}
+{{end}}

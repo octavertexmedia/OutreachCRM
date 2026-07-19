@@ -22,6 +22,7 @@ import (
 	"github.com/manishkumar/outreachcrm/internal/llm"
 	"github.com/manishkumar/outreachcrm/internal/mail"
 	"github.com/manishkumar/outreachcrm/internal/oauth"
+	"github.com/manishkumar/outreachcrm/internal/search"
 	"github.com/manishkumar/outreachcrm/internal/sequencing"
 	"github.com/manishkumar/outreachcrm/internal/store"
 	"github.com/manishkumar/outreachcrm/internal/writing"
@@ -64,7 +65,15 @@ func main() {
 	dc.OptimizeSendTime = cfg.OptimizeSendTime
 	eng := deliverability.New(dc)
 
-	srv, err := handlers.New(st, authMgr, box, oauthMgr, cfg, enrichSvc, writeSvc, inboxSvc, eng, web.FS)
+	embedder := search.ResolveEmbedder(cfg.OpenAIAPIKey, cfg.OpenAIBaseURL, cfg.OpenAIEmbedModel)
+	searchSvc, err := search.Open(cfg.DataDir, st, embedder)
+	if err != nil {
+		slog.Error("search open", "err", err)
+		os.Exit(1)
+	}
+	defer searchSvc.Close()
+
+	srv, err := handlers.New(st, authMgr, box, oauthMgr, cfg, enrichSvc, writeSvc, inboxSvc, eng, searchSvc, web.FS)
 	if err != nil {
 		slog.Error("handlers", "err", err)
 		os.Exit(1)

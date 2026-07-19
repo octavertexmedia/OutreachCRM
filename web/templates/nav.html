@@ -26,6 +26,9 @@
     <a href="/" class="nav-item {{if eq .Nav "dashboard"}}active{{end}}" title="Dashboard">
       <i class="fi fi-rr-apps nav-ico"></i><span class="nav-text">Dashboard</span>
     </a>
+    <a href="/search" class="nav-item {{if eq .Nav "search"}}active{{end}}" title="Search">
+      <i class="fi fi-rr-search nav-ico"></i><span class="nav-text">Search</span>
+    </a>
     <a href="/leads" class="nav-item {{if eq .Nav "leads"}}active{{end}}" title="Leads">
       <i class="fi fi-rr-users nav-ico"></i><span class="nav-text">Leads</span>
     </a>
@@ -110,7 +113,13 @@
     <div class="topbar-title">
       <span class="eyebrow">Outreach console</span>
     </div>
+    <form class="topbar-search" method="get" action="/search" role="search">
+      <label class="sr-only" for="global-search-q">Global search</label>
+      <i class="fi fi-rr-search topbar-search-ico" aria-hidden="true"></i>
+      <input id="global-search-q" type="search" name="q" placeholder="Search leads, inbox…" autocomplete="off">
+    </form>
     <div class="topbar-actions">
+      <a class="topbar-link" href="/search" title="Search"><i class="fi fi-rr-search-alt"></i> Search</a>
       <button type="button" class="topbar-link" id="inspector-toggle" title="Toggle detail pane">
         <i class="fi fi-rr-eye"></i> Details
       </button>
