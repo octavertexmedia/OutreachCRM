@@ -216,42 +216,98 @@ type DomainCheck struct {
 }
 
 type DashboardStats struct {
-	Leads      int
-	Premium    int
-	Campaigns  int
-	Accounts   int
-	Scheduled  int
-	Positive   int
-	Dead       int
-	HITLOpen   int
-	SentToday  int
-	Bounces    int
+	Leads      int `json:"leads"`
+	Premium    int `json:"premium"`
+	Campaigns  int `json:"campaigns"`
+	Accounts   int `json:"accounts"`
+	Scheduled  int `json:"scheduled"`
+	Positive   int `json:"positive"`
+	Dead       int `json:"dead"`
+	HITLOpen   int `json:"hitlOpen"`
+	SentToday  int `json:"sentToday"`
+	Bounces    int `json:"bounces"`
 }
 
 type Analytics struct {
-	Sent       int
-	Failed     int
-	Dead       int
-	Positive   int
-	Unsub      int
-	OpenHITL   int
-	ByVariantA int
-	ByVariantB int
-	Enriched   int
-	WithDraft  int
-	Enrolled   int
-	ReplyRate  float64 // positive / sent * 100
-	UnsubRate  float64
-	Queued     int
+	Sent       int     `json:"sent"`
+	Failed     int     `json:"failed"`
+	Dead       int     `json:"dead"`
+	Positive   int     `json:"positive"`
+	Unsub      int     `json:"unsub"`
+	OpenHITL   int     `json:"openHitl"`
+	ByVariantA int     `json:"byVariantA"`
+	ByVariantB int     `json:"byVariantB"`
+	Enriched   int     `json:"enriched"`
+	WithDraft  int     `json:"withDraft"`
+	Enrolled   int     `json:"enrolled"`
+	ReplyRate  float64 `json:"replyRate"` // positive / sent * 100
+	UnsubRate  float64 `json:"unsubRate"`
+	Queued     int     `json:"queued"`
 }
 
 type PipelineFunnel struct {
-	Sourced   int
-	Enriched  int
-	Drafted   int
-	Sequenced int
-	Replied   int
-	Positive  int
+	Sourced   int `json:"sourced"`
+	Enriched  int `json:"enriched"`
+	Drafted   int `json:"drafted"`
+	Sequenced int `json:"sequenced"`
+	Replied   int `json:"replied"`
+	Positive  int `json:"positive"`
+}
+
+// NamedCount is a labeled aggregate for charts.
+type NamedCount struct {
+	Name  string  `json:"name"`
+	Count int     `json:"count"`
+	Value float64 `json:"value,omitempty"`
+}
+
+// GeoPoint is a location proxy (from website/email TLD) for map bubbles.
+type GeoPoint struct {
+	Code    string  `json:"code"`
+	Country string  `json:"country"`
+	Count   int     `json:"count"`
+	Lat     float64 `json:"lat"`
+	Lng     float64 `json:"lng"`
+}
+
+// DayCount is a time-series point.
+type DayCount struct {
+	Day   string `json:"day"`
+	Count int    `json:"count"`
+	Prev  int    `json:"prev,omitempty"` // prior-period parallel day
+}
+
+// CampaignNode powers the campaign treemap / schedule bars.
+type CampaignNode struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Status   string `json:"status"`
+	Enrolled int    `json:"enrolled"`
+	Sent     int    `json:"sent"`
+	Failed   int    `json:"failed"`
+	Queued   int    `json:"queued"`
+}
+
+// WordWeight is a token for the word cloud.
+type WordWeight struct {
+	Text  string `json:"text"`
+	Value int    `json:"value"`
+}
+
+// BusinessSnapshot is the full dashboard payload for D3 infographics.
+type BusinessSnapshot struct {
+	GeneratedAt string         `json:"generatedAt"`
+	KPIs        DashboardStats `json:"kpis"`
+	Funnel      PipelineFunnel `json:"funnel"`
+	Analytics   Analytics      `json:"analytics"`
+	Locations   []GeoPoint     `json:"locations"`
+	Campaigns   []CampaignNode `json:"campaigns"`
+	Categories  []NamedCount   `json:"categories"`
+	Sources     []NamedCount   `json:"sources"`
+	LeadDays    []DayCount     `json:"leadDays"`
+	SendDays    []DayCount     `json:"sendDays"`
+	Words       []WordWeight   `json:"words"`
+	Intents     []NamedCount   `json:"intents"`
 }
 
 type DeliverabilityDecisionRow struct {

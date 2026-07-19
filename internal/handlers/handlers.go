@@ -52,6 +52,13 @@ func New(st *store.Store, a *auth.Manager, box *crypto.Box, oa *oauth.Managers, 
 			_ = json.Unmarshal([]byte(s), &out)
 			return out
 		},
+		"json": func(v any) template.JS {
+			b, err := json.Marshal(v)
+			if err != nil {
+				return template.JS("null")
+			}
+			return template.JS(b)
+		},
 		"kindLabel": search.KindLabel,
 		"badgeClass": func(status string) string {
 			switch status {
@@ -102,6 +109,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /logout", s.logout)
 
 	mux.HandleFunc("GET /{$}", s.home)
+	mux.HandleFunc("GET /api/dashboard/snapshot", s.dashboardSnapshotAPI)
 	mux.HandleFunc("GET /leads", s.leadsGet)
 	mux.HandleFunc("POST /leads", s.leadsPost)
 	mux.HandleFunc("POST /leads/seed", s.leadsSeed)
@@ -262,13 +270,29 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) dashboardFor(w http.ResponseWriter, r *http.Request, u models.SessionUser) {
-	st, err := s.Store.Stats(u.IsAdmin(), u.ID)
+	snap, err := s.Store.BusinessSnapshot(u.IsAdmin(), u.ID, u.WorkspaceID)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	funnel, _ := s.Store.PipelineFunnel(u.IsAdmin(), u.ID, u.WorkspaceID)
-	s.render(w, "dashboard.html", map[string]any{"Stats": st, "Funnel": funnel, "Nav": "dashboard", "User": u})
+	s.render(w, "dashboard.html", map[string]any{
+		"Stats": snap.KPIs, "Funnel": snap.Funnel, "Analytics": snap.Analytics,
+		"Snapshot": snap, "Nav": "dashboard", "User": u,
+	})
+}
+
+func (s *Server) dashboardSnapshotAPI(w http.ResponseWriter, r *http.Request) {
+	u := s.current(r)
+	snap, err := s.Store.BusinessSnapshot(u.IsAdmin(), u.ID, u.WorkspaceID)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "private, max-age=30")
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(true)
+	_ = enc.Encode(snap)
 }
 
 func (s *Server) leadsGet(w http.ResponseWriter, r *http.Request) {

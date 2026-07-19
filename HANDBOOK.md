@@ -101,6 +101,7 @@ Dashboard shows the live funnel for steps 1–6.
 
 ## 8. Changelog
 
+- 2026-07-19 — Dashboard business snapshot: KPI strip + pipeline funnel, D3 world bubbles (TLD→country), campaign treemap & activity bars, prev-vs-new leads area, category donut, ICP word cloud, reply intents; JSON at `GET /api/dashboard/snapshot`.
 - 2026-07-19 — Search categories: All / Leads / Campaigns / Email / Inbox / Queue / Templates / Accounts, plus field chips (name, email, phone, website, company, subject, notes).
 - 2026-07-19 — Search page uses `app-body` appshell (sidebar/topbar/inspector) like other console pages.
 - 2026-07-19 — Global search is full Zvec hybrid (HNSW + FTS + MultiQuery RRF); size cap raised to 80 MB; OpenAI embeddings with hash fallback; `make build-lite` for pure-Go FTS5 only.
