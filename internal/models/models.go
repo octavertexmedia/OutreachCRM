@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	RoleAdmin  = "admin"
@@ -36,7 +39,13 @@ type SessionUser struct {
 	WorkspaceID int64
 }
 
-func (u SessionUser) IsAdmin() bool { return u.Role == RoleAdmin }
+func (u SessionUser) IsAdmin() bool {
+	return strings.EqualFold(strings.TrimSpace(u.Role), RoleAdmin)
+}
+
+func (u User) IsAdmin() bool {
+	return strings.EqualFold(strings.TrimSpace(u.Role), RoleAdmin)
+}
 
 type Workspace struct {
 	ID        int64

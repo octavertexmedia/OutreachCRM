@@ -101,6 +101,7 @@ Dashboard shows the live funnel for steps 1–6.
 
 ## 8. Changelog
 
+- 2026-07-20 — `/users` (and Admin nav: Users / Workspaces / Audit) is admin-only; sender role is redirected to `/` and never shown the Admin nav section.
 - 2026-07-19 — Campaign funnel tracker: enroll audience → records which campaign funnel it runs; `/funnels` shows queued/sent/replied/positive/step distribution per audience×campaign (octavertex-growth wiring).
 - 2026-07-19 — Multi-workspace: auto OctaVertex Media + RevNext tenants; onboard any new workspace with optional playbook pack; admin switcher; assign users to workspace; brand seed splits OVM/RevNext packs; lists scoped to active workspace.
 - 2026-07-19 — Audiences: saved lead filters (category/source/enrichment/company/email) with member snapshot, live preview, bulk enroll into campaigns; filter bar + “Save as audience” on `/leads`; primary campaign enroll path.

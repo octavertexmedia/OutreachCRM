@@ -149,7 +149,8 @@ func RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, ok := UserFromContext(r.Context())
 		if !ok || !u.IsAdmin() {
-			http.Error(w, "forbidden", http.StatusForbidden)
+			// Senders (and anyone else) must not land on admin pages.
+			http.Redirect(w, r, "/", http.StatusSeeOther)
 			return
 		}
 		next(w, r)

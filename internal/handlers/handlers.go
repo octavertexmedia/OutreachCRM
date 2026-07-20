@@ -942,8 +942,20 @@ func (s *Server) inboxClassify(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) usersGet(w http.ResponseWriter, r *http.Request) {
+func (s *Server) requireAdminOrRedirect(w http.ResponseWriter, r *http.Request) (models.SessionUser, bool) {
 	u := s.current(r)
+	if !u.IsAdmin() {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return u, false
+	}
+	return u, true
+}
+
+func (s *Server) usersGet(w http.ResponseWriter, r *http.Request) {
+	u, ok := s.requireAdminOrRedirect(w, r)
+	if !ok {
+		return
+	}
 	users, err := s.Store.ListUsers()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -962,7 +974,10 @@ func (s *Server) usersGet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) usersPost(w http.ResponseWriter, r *http.Request) {
-	u := s.current(r)
+	u, ok := s.requireAdminOrRedirect(w, r)
+	if !ok {
+		return
+	}
 	_ = r.ParseForm()
 	role := r.FormValue("role")
 	if role != models.RoleAdmin && role != models.RoleSender {
@@ -985,6 +1000,9 @@ func (s *Server) usersPost(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) usersActive(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.requireAdminOrRedirect(w, r); !ok {
+		return
+	}
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	_ = r.ParseForm()
 	active := r.FormValue("active") == "1"
@@ -993,7 +1011,10 @@ func (s *Server) usersActive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) usersAssignWorkspace(w http.ResponseWriter, r *http.Request) {
-	actor := s.current(r)
+	actor, ok := s.requireAdminOrRedirect(w, r)
+	if !ok {
+		return
+	}
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	_ = r.ParseForm()
 	wsID, _ := strconv.ParseInt(r.FormValue("workspace_id"), 10, 64)

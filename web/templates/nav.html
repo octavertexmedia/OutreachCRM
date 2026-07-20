@@ -75,15 +75,16 @@
       <i class="fi fi-rr-lock nav-ico"></i><span class="nav-text">Security</span>
     </a>
 
+    {{/* Admin-only: Users / Workspaces / Audit — hidden from sender role */}}
     {{if and .User .User.IsAdmin}}
     <p class="nav-label">Admin</p>
-    <a href="/users" class="nav-item {{if eq .Nav "users"}}active{{end}}" title="Users">
+    <a href="/users" class="nav-item {{if eq .Nav "users"}}active{{end}}" title="Users (admin)">
       <i class="fi fi-rr-user nav-ico"></i><span class="nav-text">Users</span>
     </a>
-    <a href="/workspaces" class="nav-item {{if eq .Nav "workspaces"}}active{{end}}" title="Workspaces">
+    <a href="/workspaces" class="nav-item {{if eq .Nav "workspaces"}}active{{end}}" title="Workspaces (admin)">
       <i class="fi fi-rr-briefcase nav-ico"></i><span class="nav-text">Workspaces</span>
     </a>
-    <a href="/audit" class="nav-item {{if eq .Nav "audit"}}active{{end}}" title="Audit">
+    <a href="/audit" class="nav-item {{if eq .Nav "audit"}}active{{end}}" title="Audit (admin)">
       <i class="fi fi-rr-clipboard-list-check nav-ico"></i><span class="nav-text">Audit</span>
     </a>
     {{end}}
