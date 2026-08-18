@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/manishkumar/outreachcrm/internal/models"
@@ -29,17 +30,27 @@ func (s *Sender) Send(account models.EmailAccount, accessToken, smtpPassword, es
 	}
 	switch account.Provider {
 	case models.ProviderPostmark:
-		return s.sendPostmark(espKey, account.Email, to, subject, body, messageID, openPixelURL)
-	case models.ProviderSES:
-		if espKey != "" {
+		return s.sendPostmark(espKey, fromAddr(account), to, subject, body, messageID, openPixelURL)
+	case models.ProviderSES, models.ProviderBrevo, models.ProviderSendGrid, models.ProviderMailgun:
+		if espKey != "" && smtpPassword == "" {
 			smtpPassword = espKey
 		}
 		return s.sendSMTP(account, "", smtpPassword, to, subject, body, messageID, openPixelURL)
 	case models.ProviderGoogle, models.ProviderMicrosoft:
 		return s.sendSMTP(account, accessToken, "", to, subject, body, messageID, openPixelURL)
 	default:
+		if espKey != "" && smtpPassword == "" {
+			smtpPassword = espKey
+		}
 		return s.sendSMTP(account, "", smtpPassword, to, subject, body, messageID, openPixelURL)
 	}
+}
+
+func fromAddr(account models.EmailAccount) string {
+	if strings.TrimSpace(account.FromName) != "" && strings.TrimSpace(account.Email) != "" {
+		return account.FromName + " <" + account.Email + ">"
+	}
+	return account.Email
 }
 
 func (s *Sender) sendPostmark(token, from, to, subject, body, messageID, openPixelURL string) error {

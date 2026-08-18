@@ -152,6 +152,12 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 	{7, `
 -- campaign funnel tracker: audience × campaign runs
 `},
+	{8, `
+-- staff AI, marketing SMTP, lead status
+`},
+	{9, `
+-- telephony: Tata Smartflo connection + call logs
+`},
 }
 
 func (s *Store) migrate() error {
@@ -207,6 +213,18 @@ func (s *Store) migrate() error {
 		}
 		if m.version == 7 {
 			if err := upgradeCampaignFunnels(tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("migration %d: %w", m.version, err)
+			}
+		}
+		if m.version == 8 {
+			if err := upgradeAIAndMarketing(tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("migration %d: %w", m.version, err)
+			}
+		}
+		if m.version == 9 {
+			if err := upgradeTelephony(tx); err != nil {
 				_ = tx.Rollback()
 				return fmt.Errorf("migration %d: %w", m.version, err)
 			}
@@ -472,5 +490,97 @@ CREATE INDEX IF NOT EXISTS idx_car_campaign ON campaign_audience_runs(campaign_i
 	_, _ = tx.Exec(`ALTER TABLE campaign_leads ADD COLUMN audience_id INTEGER NOT NULL DEFAULT 0`)
 	_, _ = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_cl_audience ON campaign_leads(audience_id)`)
 	return nil
+}
+
+func upgradeAIAndMarketing(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+CREATE TABLE IF NOT EXISTS workspace_ai (
+  workspace_id INTEGER PRIMARY KEY,
+  system_prompt TEXT NOT NULL DEFAULT '',
+  business_prompt TEXT NOT NULL DEFAULT '',
+  openai_key_enc TEXT NOT NULL DEFAULT '',
+  openai_base_url TEXT NOT NULL DEFAULT '',
+  openai_model TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS marketing_smtp (
+  workspace_id INTEGER PRIMARY KEY,
+  provider TEXT NOT NULL DEFAULT 'smtp',
+  host TEXT NOT NULL DEFAULT '',
+  port INTEGER NOT NULL DEFAULT 587,
+  username TEXT NOT NULL DEFAULT '',
+  password_enc TEXT NOT NULL DEFAULT '',
+  api_key_enc TEXT NOT NULL DEFAULT '',
+  from_email TEXT NOT NULL DEFAULT '',
+  from_name TEXT NOT NULL DEFAULT '',
+  daily_quota INTEGER NOT NULL DEFAULT 200,
+  sent_today INTEGER NOT NULL DEFAULT 0,
+  quota_date TEXT NOT NULL DEFAULT '',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+`)
+	if err != nil {
+		return err
+	}
+	_, _ = tx.Exec(`ALTER TABLE leads ADD COLUMN status TEXT NOT NULL DEFAULT 'new'`)
+	_, _ = tx.Exec(`ALTER TABLE inbound_replies ADD COLUMN suggested_reply TEXT NOT NULL DEFAULT ''`)
+	return nil
+}
+
+func upgradeTelephony(tx *sql.Tx) error {
+	_, err := tx.Exec(`
+CREATE TABLE IF NOT EXISTS telephony_accounts (
+  workspace_id INTEGER PRIMARY KEY,
+  provider TEXT NOT NULL DEFAULT 'smartflo',
+  base_url TEXT NOT NULL DEFAULT '',
+  login_email TEXT NOT NULL DEFAULT '',
+  password_enc TEXT NOT NULL DEFAULT '',
+  token_enc TEXT NOT NULL DEFAULT '',
+  auth_scheme TEXT NOT NULL DEFAULT '',
+  agent_number TEXT NOT NULL DEFAULT '',
+  caller_id TEXT NOT NULL DEFAULT '',
+  call_timeout INTEGER NOT NULL DEFAULT 0,
+  webhook_secret TEXT NOT NULL DEFAULT '',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  last_error TEXT NOT NULL DEFAULT '',
+  last_verified_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS call_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL DEFAULT 1,
+  lead_id INTEGER,
+  user_id INTEGER NOT NULL DEFAULT 0,
+  provider TEXT NOT NULL DEFAULT 'smartflo',
+  call_id TEXT NOT NULL DEFAULT '',
+  uuid TEXT NOT NULL DEFAULT '',
+  ref_id TEXT NOT NULL DEFAULT '',
+  direction TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT '',
+  agent_number TEXT NOT NULL DEFAULT '',
+  agent_name TEXT NOT NULL DEFAULT '',
+  client_number TEXT NOT NULL DEFAULT '',
+  caller_id TEXT NOT NULL DEFAULT '',
+  duration INTEGER NOT NULL DEFAULT 0,
+  billsec INTEGER NOT NULL DEFAULT 0,
+  recording_url TEXT NOT NULL DEFAULT '',
+  hangup_cause TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  started_at TEXT,
+  answered_at TEXT,
+  ended_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_call_logs_ws ON call_logs(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_call_logs_lead ON call_logs(lead_id);
+CREATE INDEX IF NOT EXISTS idx_call_logs_ref ON call_logs(ref_id);
+CREATE INDEX IF NOT EXISTS idx_call_logs_uuid ON call_logs(uuid);
+CREATE INDEX IF NOT EXISTS idx_call_logs_callid ON call_logs(call_id);
+`)
+	return err
 }
 

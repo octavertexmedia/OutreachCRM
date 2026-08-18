@@ -20,7 +20,7 @@ Bootstrap admin from `BOOTSTRAP_ADMIN_*` when users table is empty. Users belong
 | DB | SQLite WAL + versioned migrations + file backups (`data/backups/`) |
 | Auth | bcrypt + TOTP 2FA + HMAC cookies; API rate limit |
 | Secrets | OpenBao at **https://secrets.revnext.in/** (AppRole → KV); AES-GCM in-app with `ENCRYPTION_KEY` |
-| Email | SMTP / Gmail+Outlook OAuth XOAUTH2 / Postmark HTTP / SES SMTP |
+| Email | Mailbox IMAP (OAuth or password) for sync + 1:1; paid ESP SMTP (Brevo/SendGrid/Mailgun/Postmark/SES) for campaign blasts |
 | Search | [Alibaba Zvec](https://github.com/alibaba/zvec) hybrid: HNSW dense + native FTS + MultiQuery RRF (`make build`); lite SQLite FTS5 via `make build-lite` |
 | Size | `make build-size` ≤ 80 MB (Go binary; ship `libzvec_c_api` alongside) |
 | Prod URL | **https://outreach.vertexcrm.in/** — Contabo VPS with AgencyCRM (`:8003`, `/var/www/outreachcrm`) |
@@ -70,6 +70,7 @@ Dashboard shows the live funnel for steps 1–6.
 | CSV import, analytics, templates | Yes |
 | **Email Deliverability Engine** | Yes — `/deliverability` + pre-send gate |
 | **Global search** | Yes — `/search` + topbar; Zvec hybrid (HNSW + FTS + RRF) by default |
+| **Staff AI + marketing ESP** | Yes — dashboard/inbox copilot; mailbox IMAP vs paid campaign SMTP |
 
 ## 5. Key routes
 
@@ -82,6 +83,8 @@ Dashboard shows the live funnel for steps 1–6.
 - `/analytics`, `/templates`, `/audit`, `/workspaces`
 - `POST /webhooks/postmark`, `POST /webhooks/ses` — bounce/complaint → suppression
 - `/leads/import` — CSV bulk
+- `POST /api/dashboard/ai/chat`, `POST /api/inbox/ai/chat` — staff AI (tool-calling, confirm-gated writes)
+- `/settings/email` — workspace AI prompts + bulk marketing SMTP
 
 ## 6. Gotchas
 
@@ -90,6 +93,8 @@ Dashboard shows the live funnel for steps 1–6.
 - **SSO:** TOTP 2FA yes; enterprise SAML/OIDC IdP login not bundled (OAuth is for *mail*, not user login).
 - **KMS / secrets:** production loads `ENCRYPTION_KEY` (and peers) from OpenBao KV via AppRole; app still decrypts locally with AES-GCM (not cloud KMS).
 - Enrichment crawl is lightweight HTTP GET — not PageSpeed API.
+- **Mailbox vs marketing SMTP:** `/accounts` is IMAP sync + HITL replies (OAuth or Titan/Zoho/Hostinger password). Campaign blasts use the workspace **Marketing SMTP** on `/settings/email` when set — personal Gmail/Outlook are not used for blasts in that case.
+- **Staff AI:** `OUTREACH_AI_MODE=off|suggest|auto` (default off). Suggest saves inbound drafts; auto never sends free-form mail. Writes from chat require confirm. See `docs/AI-ASSIST.md`.
 
 ## 7. Runbook (short)
 
@@ -101,6 +106,7 @@ Dashboard shows the live funnel for steps 1–6.
 
 ## 8. Changelog
 
+- 2026-08-18 — Staff AI (dashboard + inbox tool chat), password IMAP presets (Titan/Zoho/Hostinger), workspace marketing SMTP for campaign blasts (personal mailboxes stay for sync + HITL). Env: `OUTREACH_AI_MODE`. Docs: `docs/AI-ASSIST.md`.
 - 2026-07-20 — `/users` (and Admin nav: Users / Workspaces / Audit) is admin-only; sender role is redirected to `/` and never shown the Admin nav section.
 - 2026-07-19 — Campaign funnel tracker: enroll audience → records which campaign funnel it runs; `/funnels` shows queued/sent/replied/positive/step distribution per audience×campaign (octavertex-growth wiring).
 - 2026-07-19 — Multi-workspace: auto OctaVertex Media + RevNext tenants; onboard any new workspace with optional playbook pack; admin switcher; assign users to workspace; brand seed splits OVM/RevNext packs; lists scoped to active workspace.

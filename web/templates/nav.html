@@ -44,6 +44,9 @@
     <a href="/queue" class="nav-item {{if eq .Nav "queue"}}active{{end}}" title="Queue">
       <i class="fi fi-rr-time-past nav-ico"></i><span class="nav-text">Queue</span>
     </a>
+    <a href="/calls" class="nav-item {{if eq .Nav "calls"}}active{{end}}" title="Calls">
+      <i class="fi fi-rr-phone-call nav-ico"></i><span class="nav-text">Calls</span>
+    </a>
 
     <p class="nav-label">Inbox</p>
     <a href="/inbox" class="nav-item {{if eq .Nav "inbox"}}active{{end}}" title="Inbox">
@@ -67,6 +70,9 @@
     <p class="nav-label">Workspace</p>
     <a href="/accounts" class="nav-item {{if eq .Nav "accounts"}}active{{end}}" title="Accounts">
       <i class="fi fi-rr-at nav-ico"></i><span class="nav-text">Accounts</span>
+    </a>
+    <a href="/settings/email" class="nav-item {{if eq .Nav "settings"}}active{{end}}" title="Email &amp; AI">
+      <i class="fi fi-rr-settings nav-ico"></i><span class="nav-text">Email &amp; AI</span>
     </a>
     <a href="/templates" class="nav-item {{if eq .Nav "templates"}}active{{end}}" title="Templates">
       <i class="fi fi-rr-file-invoice nav-ico"></i><span class="nav-text">Templates</span>

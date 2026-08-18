@@ -23,6 +23,7 @@ type Config struct {
 	OpenAIBaseURL          string
 	OpenAIModel            string
 	OpenAIEmbedModel       string
+	AIMode                 string // off | suggest | auto
 	WorkerInterval         time.Duration
 	IMAPInterval           time.Duration
 	DryRunSMTP             bool
@@ -42,6 +43,16 @@ type Config struct {
 	BlacklistCheck         bool
 	RequireSendAuth        bool
 	OptimizeSendTime       bool
+
+	SmartfloBaseURL     string
+	SmartfloEmail       string
+	SmartfloPassword    string
+	SmartfloToken       string
+	SmartfloAuthScheme  string
+	SmartfloAgentNumber string
+	SmartfloCallerID    string
+	SmartfloCallTimeout int
+	SmartfloCDRDays     int
 }
 
 func Load() Config {
@@ -65,6 +76,7 @@ func Load() Config {
 		OpenAIBaseURL:          strings.TrimRight(env("OPENAI_BASE_URL", "https://api.openai.com/v1"), "/"),
 		OpenAIModel:            env("OPENAI_MODEL", "gpt-4o-mini"),
 		OpenAIEmbedModel:       env("OPENAI_EMBED_MODEL", "text-embedding-3-small"),
+		AIMode:                 normalizeAIMode(env("OUTREACH_AI_MODE", "off")),
 		WorkerInterval:         envDuration("WORKER_INTERVAL", 30*time.Second),
 		IMAPInterval:           envDuration("IMAP_INTERVAL", 2*time.Minute),
 		DryRunSMTP:             envBool("DRY_RUN_SMTP", false),
@@ -84,6 +96,25 @@ func Load() Config {
 		BlacklistCheck:         envBool("DELIVERABILITY_BLACKLIST_CHECK", true),
 		RequireSendAuth:        envBool("DELIVERABILITY_REQUIRE_AUTH", false),
 		OptimizeSendTime:       envBool("DELIVERABILITY_OPTIMIZE_SEND_TIME", true),
+
+		SmartfloBaseURL:     strings.TrimRight(env("SMARTFLO_BASE_URL", "https://api-smartflo.tatateleservices.com/v1"), "/"),
+		SmartfloEmail:       env("SMARTFLO_EMAIL", ""),
+		SmartfloPassword:    env("SMARTFLO_PASSWORD", ""),
+		SmartfloToken:       env("SMARTFLO_TOKEN", ""),
+		SmartfloAuthScheme:  env("SMARTFLO_AUTH_SCHEME", ""),
+		SmartfloAgentNumber: env("SMARTFLO_AGENT_NUMBER", ""),
+		SmartfloCallerID:    env("SMARTFLO_CALLER_ID", ""),
+		SmartfloCallTimeout: envInt("SMARTFLO_CALL_TIMEOUT", 0),
+		SmartfloCDRDays:     envInt("SMARTFLO_CDR_SYNC_DAYS", 7),
+	}
+}
+
+func normalizeAIMode(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "suggest", "auto":
+		return strings.ToLower(strings.TrimSpace(v))
+	default:
+		return "off"
 	}
 }
 

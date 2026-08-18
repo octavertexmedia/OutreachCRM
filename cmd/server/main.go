@@ -95,7 +95,10 @@ func main() {
 	}
 	go sendWorker.Run(ctx)
 
-	imapWorker := &imapsync.Worker{Store: st, Box: box, OAuth: oauthMgr, Classify: inboxSvc, Interval: cfg.IMAPInterval}
+	imapWorker := &imapsync.Worker{
+		Store: st, Box: box, OAuth: oauthMgr, Classify: inboxSvc,
+		Writing: writeSvc, AIMode: cfg.AIMode, Interval: cfg.IMAPInterval,
+	}
 	go imapWorker.Run(ctx)
 
 	go backup.RunPeriodically(ctx.Done(), cfg.DataDir, cfg.BackupInterval)
@@ -113,6 +116,11 @@ func main() {
 					slog.Error("pii purge", "err", err)
 				} else if n > 0 {
 					slog.Info("pii purge", "rows", n)
+				}
+				if c, err := st.PruneCallLogs(days); err != nil {
+					slog.Error("call log purge", "err", err)
+				} else if c > 0 {
+					slog.Info("call log purge", "rows", c)
 				}
 			}
 		}

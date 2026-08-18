@@ -11,7 +11,7 @@ import (
 const leadSelectCols = `id, COALESCE(owner_id,0), COALESCE(workspace_id,1), name, website, phone, email, google_rating, category, issues_json,
 		premium_score, COALESCE(confidence,0), COALESCE(enrichment_cost,0), enrichment_status, notes, consent_at, COALESCE(consent_source,''),
 		COALESCE(source,'manual'), COALESCE(company,''), COALESCE(title,''), COALESCE(draft_subject,''), COALESCE(draft_body,''),
-		COALESCE(email_bounce_prob,-1), COALESCE(email_validation,''),
+		COALESCE(status,'new'), COALESCE(email_bounce_prob,-1), COALESCE(email_validation,''),
 		created_at, updated_at`
 
 func (s *Store) ListLeadsFiltered(admin bool, ownerID, workspaceID int64, f models.LeadFilter) ([]models.Lead, error) {

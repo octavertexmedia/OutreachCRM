@@ -13,12 +13,17 @@
   <div class="page-hero">
     <div>
       <h1>Accounts</h1>
-      <p class="sub" style="margin-bottom:0">Connect sending mail — OAuth or SMTP. Encrypted at rest.</p>
+      <p class="sub" style="margin-bottom:0">Mailbox sync + 1:1 HITL. Campaign blasts use paid ESP on Email &amp; AI.</p>
     </div>
     <div class="row-actions">
+      <a class="topbar-link" href="/settings/email" style="border-color:var(--border)">Bulk ESP</a>
       <a class="topbar-link" href="/domains" style="border-color:var(--border)">DNS</a>
       <a class="topbar-link" href="/deliverability" style="border-color:var(--border)">Deliverability</a>
     </div>
+  </div>
+
+  <div class="panel">
+    <p class="muted" style="margin:0"><strong>Mailbox sync</strong> (Gmail/Outlook OAuth or Titan/Zoho/Hostinger IMAP) pulls inbound threads. <strong>Bulk campaign SMTP</strong> is a separate paid ESP — {{if .MarketingOK}}configured ({{.Marketing.Provider}} · {{.Marketing.FromEmail}}){{else}}not set — add it on <a href="/settings/email">Email &amp; AI</a>{{end}}.</p>
   </div>
 
   <div class="panel row-actions">
@@ -34,15 +39,23 @@
   </div>
 
   <details class="fold panel">
-    <summary>Add SMTP / ESP</summary>
+    <summary>Add mailbox (IMAP password)</summary>
+    <p class="muted">For Titan, Zoho, Hostinger, or custom IMAP. OAuth Gmail/Outlook is above. This mailbox is for sync + 1:1 replies — not campaign blasts.</p>
     <form class="inline" method="post" action="/accounts" style="margin-top:0.85rem">
+      <label>Preset
+        <select name="preset" id="mailbox-preset">
+          {{range .MailboxPresets}}
+          <option value="{{.ID}}" data-imap="{{.IMAPHost}}" data-imap-port="{{.IMAPPort}}" data-smtp="{{.SMTPHost}}" data-smtp-port="{{.SMTPPort}}">{{.Label}}</option>
+          {{end}}
+        </select>
+      </label>
       <label>From email<input name="email" type="email" required></label>
-      <label>SMTP host<input name="smtp_host" required placeholder="smtp.example.com"></label>
-      <label>Port<input name="smtp_port" type="number" value="587"></label>
+      <label>SMTP host<input name="smtp_host" id="smtp_host" placeholder="smtp.titan.email"></label>
+      <label>Port<input name="smtp_port" id="smtp_port" type="number" value="587"></label>
       <label>Username<input name="username" required></label>
       <label>Password<input name="password" type="password" required></label>
-      <label>IMAP host<input name="imap_host" placeholder="optional"></label>
-      <label>IMAP port<input name="imap_port" type="number" value="993"></label>
+      <label>IMAP host<input name="imap_host" id="imap_host" placeholder="imap.titan.email"></label>
+      <label>IMAP port<input name="imap_port" id="imap_port" type="number" value="993"></label>
       <label>Daily quota<input name="daily_quota" type="number" value="40" min="1"></label>
       <label>Provider
         <select name="provider">
@@ -65,23 +78,42 @@
     </div>
     <div style="overflow-x:auto">
       <table class="leads-table">
-        <thead><tr><th>Email</th><th>Provider</th><th>Host</th><th>Today</th></tr></thead>
+        <thead><tr><th>Email</th><th>Role</th><th>Provider</th><th>Host</th><th>Today</th></tr></thead>
         <tbody>
         {{range .Accounts}}
         <tr>
           <td><strong>{{.Email}}</strong></td>
+          <td><span class="badge {{if eq .Role "mailbox"}}done{{end}}">{{if eq .Role "mailbox"}}mailbox sync{{else}}legacy send{{end}}</span></td>
           <td><span class="badge">{{.Provider}}</span></td>
           <td class="muted">{{.SMTPHost}}:{{.SMTPPort}}{{if .IMAPHost}} · IMAP{{end}}</td>
           <td>{{.SentToday}} / {{.DailyQuota}}</td>
         </tr>
         {{else}}
-        <tr><td colspan="4" class="muted" style="padding:1.25rem">No accounts yet — connect OAuth or add SMTP.</td></tr>
+        <tr><td colspan="5" class="muted" style="padding:1.25rem">No mailboxes yet — connect OAuth or add IMAP.</td></tr>
         {{end}}
         </tbody>
       </table>
     </div>
   </div>
 
+  <script>
+  (function(){
+    var sel = document.getElementById('mailbox-preset');
+    if (!sel) return;
+    sel.addEventListener('change', function(){
+      var o = sel.options[sel.selectedIndex];
+      if (!o) return;
+      var imap = document.getElementById('imap_host');
+      var ip = document.getElementById('imap_port');
+      var smtp = document.getElementById('smtp_host');
+      var sp = document.getElementById('smtp_port');
+      if (imap && o.dataset.imap) imap.value = o.dataset.imap;
+      if (ip && o.dataset.imapPort) ip.value = o.dataset.imapPort;
+      if (smtp && o.dataset.smtp) smtp.value = o.dataset.smtp;
+      if (sp && o.dataset.smtpPort) sp.value = o.dataset.smtpPort;
+    });
+  })();
+  </script>
   {{template "foot" .}}
 </body>
 </html>

@@ -31,8 +31,12 @@ func (s *Sender) sendSMTP(account models.EmailAccount, accessToken, smtpPassword
 	if boundary == "orc_" {
 		boundary = "orc_boundary"
 	}
+	from := account.Email
+	if strings.TrimSpace(account.FromName) != "" {
+		from = account.FromName + " <" + account.Email + ">"
+	}
 	headers := []string{
-		"From: " + account.Email,
+		"From: " + from,
 		"To: " + to,
 		"Subject: " + subject,
 		"MIME-Version: 1.0",

@@ -1,0 +1,60 @@
+{{define "ai_panel"}}
+{{if .AIEnabled}}
+<details class="fold panel ai-panel" open>
+  <summary>AI assistant <span class="badge">{{.AIMode}}</span></summary>
+  <div class="ai-chat" data-endpoint="{{.AIEndpoint}}">
+    <div class="ai-log muted" data-log>Ask about leads, queue, campaigns, or inbox. Writes need your confirmation.</div>
+    <form class="ai-form" data-form>
+      <textarea name="message" rows="2" required placeholder="What’s due today? Draft a reply for…"></textarea>
+      <button type="submit">Ask</button>
+    </form>
+  </div>
+</details>
+<script>
+(function(){
+  var root = document.currentScript && document.currentScript.previousElementSibling;
+  if (!root || !root.classList || !root.classList.contains('ai-panel')) {
+    root = document.querySelector('.ai-panel');
+  }
+  if (!root) return;
+  var box = root.querySelector('.ai-chat');
+  var log = root.querySelector('[data-log]');
+  var form = root.querySelector('[data-form]');
+  if (!box || !log || !form) return;
+  var history = [];
+  var extra = {};
+  var q = new URLSearchParams(location.search);
+  if (q.get('reply_id')) extra.reply_id = parseInt(q.get('reply_id'), 10);
+  if (q.get('lead_id')) extra.lead_id = parseInt(q.get('lead_id'), 10);
+  form.addEventListener('submit', function(ev){
+    ev.preventDefault();
+    var ta = form.querySelector('textarea');
+    var msg = (ta.value || '').trim();
+    if (!msg) return;
+    ta.value = '';
+    append('you', msg);
+    var payload = Object.assign({message: msg, history: history.slice(-10)}, extra);
+    fetch(box.getAttribute('data-endpoint'), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json().then(function(j){ return {ok: r.ok, j: j}; }); })
+      .then(function(res){
+        var ans = res.j.answer || res.j.error || 'No answer';
+        append('ai', ans);
+        history.push({role:'user', content: msg});
+        history.push({role:'assistant', content: ans});
+      }).catch(function(err){ append('ai', String(err)); });
+  });
+  function append(who, text){
+    if (log.classList.contains('muted')) { log.textContent = ''; log.classList.remove('muted'); }
+    var el = document.createElement('div');
+    el.className = 'ai-msg ai-msg-' + who;
+    el.textContent = text;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+  }
+})();
+</script>
+{{end}}
+{{end}}

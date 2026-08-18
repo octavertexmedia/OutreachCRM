@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Email &amp; AI · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="app-body">
+  {{template "nav" .}}
+
+  <div class="page-hero">
+    <div>
+      <h1>Email &amp; AI</h1>
+      <p class="sub" style="margin-bottom:0">Personal mailboxes sync inbox. Paid ESP SMTP sends campaign blasts.</p>
+    </div>
+    <div class="row-actions">
+      <a class="topbar-link" href="/accounts" style="border-color:var(--border)">Mailboxes</a>
+    </div>
+  </div>
+
+  {{if .Saved}}
+  <p class="panel" style="margin-bottom:1rem">Saved {{.Saved}}.</p>
+  {{end}}
+
+  <div class="panel">
+    <h2>Bulk campaign SMTP (paid ESP)</h2>
+    <p class="muted">Use a paid provider (Brevo, SendGrid, Mailgun, Postmark, SES, or their SMTP). Personal Gmail/Outlook stay for IMAP sync and 1:1 HITL replies — they are not used for blasts when this connection is set.</p>
+    <p class="muted">Bounce webhooks exist for Postmark and SES. Brevo/SendGrid complaint webhooks are not wired yet — use the ESP dashboard plus suppressions.</p>
+    <form method="post" action="/settings/email/marketing" class="inline" style="margin-top:0.85rem">
+      <label>Provider
+        <select name="provider">
+          {{range .ESPProviders}}
+          <option value="{{.}}" {{if eq $.Marketing.Provider .}}selected{{end}}>{{.}}</option>
+          {{end}}
+        </select>
+      </label>
+      <label>From email<input name="from_email" type="email" value="{{.Marketing.FromEmail}}" required></label>
+      <label>From name<input name="from_name" value="{{.Marketing.FromName}}"></label>
+      <label>SMTP host<input name="host" value="{{.Marketing.Host}}" placeholder="smtp-relay.brevo.com"></label>
+      <label>Port<input name="port" type="number" value="{{if .Marketing.Port}}{{.Marketing.Port}}{{else}}587{{end}}"></label>
+      <label>Username<input name="username" value="{{.Marketing.Username}}"></label>
+      <label>Password<input name="password" type="password" placeholder="{{if .Marketing.PasswordEnc}}leave blank to keep{{end}}"></label>
+      <label>API key<input name="api_key" type="password" placeholder="{{if .Marketing.APIKeyEnc}}leave blank to keep{{end}}"></label>
+      <label>Daily quota<input name="daily_quota" type="number" value="{{if .Marketing.DailyQuota}}{{.Marketing.DailyQuota}}{{else}}200{{end}}" min="1"></label>
+      <label class="check-label"><span>Enabled</span><input type="checkbox" name="enabled" value="1" {{if or (not .Marketing.WorkspaceID) .Marketing.Enabled}}checked{{end}}></label>
+      <button type="submit">Save marketing SMTP</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h2>Staff AI</h2>
+    <p class="muted">Mode from env: <strong>{{.AIMode}}</strong> (OUTREACH_AI_MODE=off|suggest|auto). Env key {{if .HasEnvKey}}set{{else}}missing{{end}}{{if .HasWSKey}} · workspace override saved{{end}}.</p>
+    <form method="post" action="/settings/email/ai" style="margin-top:0.85rem">
+      <label>System prompt
+        <textarea name="system_prompt" rows="5" placeholder="{{.DefaultSys}}">{{.AI.SystemPrompt}}</textarea>
+      </label>
+      <label style="margin-top:0.65rem">Business prompt
+        <textarea name="business_prompt" rows="4" placeholder="Who you sell to, offer, tone…">{{.AI.BusinessPrompt}}</textarea>
+      </label>
+      <div class="inline" style="margin-top:0.65rem">
+        <label>Workspace OpenAI key<input name="openai_api_key" type="password" placeholder="optional override"></label>
+        <label>Base URL<input name="openai_base_url" value="{{.AI.OpenAIBaseURL}}" placeholder="https://api.openai.com/v1"></label>
+        <label>Model<input name="openai_model" value="{{.AI.OpenAIModel}}" placeholder="gpt-4o-mini"></label>
+      </div>
+      <div style="margin-top:0.65rem"><button type="submit">Save AI settings</button></div>
+    </form>
+  </div>
+
+  {{template "foot" .}}
+</body>
+</html>

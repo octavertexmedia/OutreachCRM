@@ -17,7 +17,7 @@ func scanLead(row scannable) (models.Lead, error) {
 	var consent sql.NullString
 	err := row.Scan(&l.ID, &l.OwnerID, &l.WorkspaceID, &l.Name, &l.Website, &l.Phone, &l.Email, &l.GoogleRating, &l.Category,
 		&l.IssuesJSON, &l.PremiumScore, &l.Confidence, &l.EnrichmentCost, &l.EnrichmentStatus, &l.Notes, &consent, &l.ConsentSource,
-		&l.Source, &l.Company, &l.Title, &l.DraftSubject, &l.DraftBody, &l.EmailBounceProb, &l.EmailValidation,
+		&l.Source, &l.Company, &l.Title, &l.DraftSubject, &l.DraftBody, &l.Status, &l.EmailBounceProb, &l.EmailValidation,
 		&created, &updated)
 	l.CreatedAt = parseTime(created)
 	l.UpdatedAt = parseTime(updated)
@@ -26,20 +26,12 @@ func scanLead(row scannable) (models.Lead, error) {
 }
 
 func (s *Store) GetLead(id int64) (models.Lead, error) {
-	row := s.db.QueryRow(`SELECT id, COALESCE(owner_id,0), COALESCE(workspace_id,1), name, website, phone, email, google_rating, category, issues_json,
-		premium_score, COALESCE(confidence,0), COALESCE(enrichment_cost,0), enrichment_status, notes, consent_at, COALESCE(consent_source,''),
-		COALESCE(source,'manual'), COALESCE(company,''), COALESCE(title,''), COALESCE(draft_subject,''), COALESCE(draft_body,''),
-		COALESCE(email_bounce_prob,-1), COALESCE(email_validation,''),
-		created_at, updated_at FROM leads WHERE id=?`, id)
+	row := s.db.QueryRow(`SELECT `+leadSelectCols+` FROM leads WHERE id=?`, id)
 	return scanLead(row)
 }
 
 func (s *Store) FindLeadByEmail(email string) (models.Lead, error) {
-	row := s.db.QueryRow(`SELECT id, COALESCE(owner_id,0), COALESCE(workspace_id,1), name, website, phone, email, google_rating, category, issues_json,
-		premium_score, COALESCE(confidence,0), COALESCE(enrichment_cost,0), enrichment_status, notes, consent_at, COALESCE(consent_source,''),
-		COALESCE(source,'manual'), COALESCE(company,''), COALESCE(title,''), COALESCE(draft_subject,''), COALESCE(draft_body,''),
-		COALESCE(email_bounce_prob,-1), COALESCE(email_validation,''),
-		created_at, updated_at FROM leads WHERE lower(email)=lower(?) LIMIT 1`, email)
+	row := s.db.QueryRow(`SELECT `+leadSelectCols+` FROM leads WHERE lower(email)=lower(?) LIMIT 1`, email)
 	return scanLead(row)
 }
 

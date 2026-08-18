@@ -22,6 +22,8 @@
     </div>
   </div>
 
+  {{template "ai_panel" .}}
+
   <details class="fold panel" open>
     <summary>Classify a reply</summary>
     <form hx-post="/inbox/classify" hx-target="#replies-body" hx-swap="afterbegin" style="margin-top:0.85rem">

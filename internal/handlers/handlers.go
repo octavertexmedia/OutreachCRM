@@ -18,11 +18,13 @@ import (
 	"github.com/manishkumar/outreachcrm/internal/crypto"
 	"github.com/manishkumar/outreachcrm/internal/deliverability"
 	"github.com/manishkumar/outreachcrm/internal/enrichment"
+	"github.com/manishkumar/outreachcrm/internal/imapsync"
 	"github.com/manishkumar/outreachcrm/internal/inbox"
 	"github.com/manishkumar/outreachcrm/internal/models"
 	"github.com/manishkumar/outreachcrm/internal/oauth"
 	"github.com/manishkumar/outreachcrm/internal/search"
 	"github.com/manishkumar/outreachcrm/internal/store"
+	"github.com/manishkumar/outreachcrm/internal/telephony"
 	"github.com/manishkumar/outreachcrm/internal/writing"
 )
 
@@ -37,6 +39,7 @@ type Server struct {
 	Inbox          *inbox.Service
 	Deliverability *deliverability.Engine
 	Search         *search.Service
+	Telephony      *telephony.Registry
 	Templates      *template.Template
 	Static         fs.FS
 	ready          atomic.Bool
@@ -67,13 +70,25 @@ func New(st *store.Store, a *auth.Manager, box *crypto.Box, oa *oauth.Managers, 
 			return (n * 100) / d
 		},
 		"kindLabel": search.KindLabel,
+		"hms": func(sec int) string {
+			if sec <= 0 {
+				return "—"
+			}
+			if sec < 60 {
+				return fmt.Sprintf("%ds", sec)
+			}
+			if sec < 3600 {
+				return fmt.Sprintf("%dm %02ds", sec/60, sec%60)
+			}
+			return fmt.Sprintf("%dh %02dm", sec/3600, (sec%3600)/60)
+		},
 		"badgeClass": func(status string) string {
 			switch status {
-			case "done", "positive", "active", "sent", "admin":
+			case "done", "positive", "active", "sent", "admin", "answered":
 				return "done"
-			case "error", "failed", "unsubscribe", "dead":
+			case "error", "failed", "unsubscribe", "dead", "missed":
 				return "bad"
-			case "neutral", "enriching", "pending", "sender", "paused", "draft":
+			case "neutral", "enriching", "pending", "sender", "paused", "draft", "initiated":
 				return "warn"
 			default:
 				return ""
@@ -91,7 +106,8 @@ func New(st *store.Store, a *auth.Manager, box *crypto.Box, oa *oauth.Managers, 
 	s := &Server{
 		Store: st, Auth: a, Box: box, OAuth: oa, Cfg: cfg,
 		Enrichment: en, Writing: wr, Inbox: in, Deliverability: deliv,
-		Search: searchSvc, Templates: tmpl, Static: staticFS,
+		Search: searchSvc, Telephony: telephony.NewRegistry(),
+		Templates: tmpl, Static: staticFS,
 	}
 	s.ready.Store(true)
 	return s, nil
@@ -153,6 +169,8 @@ func (s *Server) Routes() http.Handler {
 	s.registerPanelRoutes(mux)
 	s.registerSearchRoutes(mux)
 	s.registerAudienceRoutes(mux)
+	s.registerTelephonyRoutes(mux)
+	s.registerAIRoutes(mux)
 
 	return s.wrap(s.Auth.Middleware(mux))
 }
@@ -297,10 +315,14 @@ func (s *Server) dashboardFor(w http.ResponseWriter, r *http.Request, u models.S
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	s.render(w, "dashboard.html", map[string]any{
+	data := map[string]any{
 		"Stats": snap.KPIs, "Funnel": snap.Funnel, "Analytics": snap.Analytics,
 		"Snapshot": snap, "Nav": "dashboard", "User": u,
-	})
+	}
+	for k, v := range s.aiPanelData(u, "/api/dashboard/ai/chat") {
+		data[k] = v
+	}
+	s.render(w, "dashboard.html", data)
 }
 
 func (s *Server) dashboardSnapshotAPI(w http.ResponseWriter, r *http.Request) {
@@ -723,20 +745,6 @@ func (s *Server) campaignEnroll(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/campaigns", http.StatusSeeOther)
 }
 
-func (s *Server) accountsGet(w http.ResponseWriter, r *http.Request) {
-	u := s.current(r)
-	accounts, err := s.Store.ListAccounts(u.IsAdmin(), u.ID, u.WorkspaceID)
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
-	s.render(w, "accounts.html", map[string]any{
-		"Accounts": accounts, "Nav": "accounts", "User": u,
-		"GoogleEnabled": s.OAuth != nil && s.OAuth.Google != nil,
-		"MSEnabled":     s.OAuth != nil && s.OAuth.Microsoft != nil,
-	})
-}
-
 func (s *Server) accountsPost(w http.ResponseWriter, r *http.Request) {
 	u := s.current(r)
 	_ = r.ParseForm()
@@ -745,9 +753,9 @@ func (s *Server) accountsPost(w http.ResponseWriter, r *http.Request) {
 		port = 587
 	}
 	imapPort, _ := strconv.Atoi(r.FormValue("imap_port"))
-	if imapPort == 0 {
-		imapPort = 993
-	}
+	smtpHost := strings.TrimSpace(r.FormValue("smtp_host"))
+	imapHost := strings.TrimSpace(r.FormValue("imap_host"))
+	imapHost, imapPort, smtpHost, port = imapsync.ApplyPreset(r.FormValue("preset"), imapHost, smtpHost, imapPort, port)
 	quota, _ := strconv.Atoi(r.FormValue("daily_quota"))
 	if quota <= 0 {
 		quota = 40
@@ -775,11 +783,11 @@ func (s *Server) accountsPost(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID:      u.WorkspaceID,
 		Email:            strings.TrimSpace(r.FormValue("email")),
 		Provider:         provider,
-		SMTPHost:         strings.TrimSpace(r.FormValue("smtp_host")),
+		SMTPHost:         smtpHost,
 		SMTPPort:         port,
 		Username:         strings.TrimSpace(r.FormValue("username")),
 		PasswordEnc:      passEnc,
-		IMAPHost:         strings.TrimSpace(r.FormValue("imap_host")),
+		IMAPHost:         imapHost,
 		IMAPPort:         imapPort,
 		DailyQuota:       quota,
 		Domain:           domain,
@@ -891,7 +899,11 @@ func (s *Server) inboxGet(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	s.render(w, "inbox.html", map[string]any{"Replies": replies, "Nav": "inbox", "User": u})
+	data := map[string]any{"Replies": replies, "Nav": "inbox", "User": u}
+	for k, v := range s.aiPanelData(u, "/api/inbox/ai/chat") {
+		data[k] = v
+	}
+	s.render(w, "inbox.html", data)
 }
 
 func (s *Server) inboxClassify(w http.ResponseWriter, r *http.Request) {

@@ -18,6 +18,7 @@ import (
 	"github.com/manishkumar/outreachcrm/internal/models"
 	"github.com/manishkumar/outreachcrm/internal/oauth"
 	"github.com/manishkumar/outreachcrm/internal/store"
+	"github.com/manishkumar/outreachcrm/internal/writing"
 )
 
 type Worker struct {
@@ -25,6 +26,8 @@ type Worker struct {
 	Box      *crypto.Box
 	OAuth    *oauth.Managers
 	Classify *inbox.Service
+	Writing  *writing.Service
+	AIMode   string
 	Interval time.Duration
 }
 
@@ -46,7 +49,7 @@ func (w *Worker) Run(ctx context.Context) {
 }
 
 func (w *Worker) tick(ctx context.Context) {
-	accounts, err := w.Store.ListOAuthAccounts()
+	accounts, err := w.Store.ListMailboxAccounts()
 	if err != nil {
 		slog.Error("imap list accounts", "err", err)
 		return
@@ -212,15 +215,20 @@ func (w *Worker) ingest(ctx context.Context, account models.EmailAccount, msg *i
 		}
 	}
 	oid := ownerID
+	ws := account.WorkspaceID
+	if ws == 0 {
+		ws = w.Store.WorkspaceIDForEmail(fromEmail)
+	}
 	_, err = w.Store.CreateReply(models.InboundReply{
-		OwnerID:   &oid,
-		LeadID:    leadID,
-		LeadName:  leadName,
-		FromEmail: fromEmail,
-		Subject:   subject,
-		Body:      text,
-		Intent:    intent,
-		MessageID: messageID,
+		OwnerID:     &oid,
+		WorkspaceID: &ws,
+		LeadID:      leadID,
+		LeadName:    leadName,
+		FromEmail:   fromEmail,
+		Subject:     subject,
+		Body:        text,
+		Intent:      intent,
+		MessageID:   messageID,
 	})
 	if err != nil && strings.Contains(err.Error(), "duplicate") {
 		return nil
@@ -239,7 +247,45 @@ func (w *Worker) ingest(ctx context.Context, account models.EmailAccount, msg *i
 		}
 		w.Store.MarkOutboundReplied(fromEmail)
 	}
+	w.maybeSuggestDraft(ctx, leadID, lead, subject, text, intent)
 	return nil
+}
+
+func (w *Worker) maybeSuggestDraft(ctx context.Context, leadID *int64, lead models.Lead, subject, inbound, intent string) {
+	if w == nil || w.Writing == nil {
+		return
+	}
+	mode := strings.ToLower(strings.TrimSpace(w.AIMode))
+	if mode != models.AIModeSuggest && mode != models.AIModeAuto {
+		return
+	}
+	if leadID == nil {
+		return
+	}
+	switch intent {
+	case "positive", "neutral":
+		draft, err := w.Writing.SuggestReply(ctx, lead, inbound)
+		if err != nil || strings.TrimSpace(draft) == "" {
+			return
+		}
+		subj := subject
+		if subj != "" && !strings.HasPrefix(strings.ToLower(subj), "re:") {
+			subj = "Re: " + subj
+		}
+		if subj == "" {
+			subj = "Follow-up"
+		}
+		_ = w.Store.SaveLeadDraft(*leadID, subj, draft)
+	case "unsubscribe":
+		if mode == models.AIModeAuto {
+			name := lead.Name
+			if name == "" {
+				name = "there"
+			}
+			_ = w.Store.SaveLeadDraft(*leadID, "Re: unsubscribe",
+				fmt.Sprintf("Hi %s — you're unsubscribed and we won't email you again.", name))
+		}
+	}
 }
 
 func (w *Worker) creds(ctx context.Context, a *models.EmailAccount) (access, pass string, err error) {

@@ -14,6 +14,30 @@ const (
 	ProviderMicrosoft = "microsoft"
 	ProviderPostmark  = "postmark"
 	ProviderSES       = "ses"
+	ProviderBrevo     = "brevo"
+	ProviderSendGrid  = "sendgrid"
+	ProviderMailgun   = "mailgun"
+
+	ProviderSmartflo = "smartflo"
+
+	AIModeOff     = "off"
+	AIModeSuggest = "suggest"
+	AIModeAuto    = "auto"
+
+	LeadStatusNew           = "new"
+	LeadStatusContacted     = "contacted"
+	LeadStatusInterested    = "interested"
+	LeadStatusNotInterested = "not_interested"
+	LeadStatusUnsubscribed  = "unsubscribed"
+	LeadStatusCustomer      = "customer"
+
+	AccountRoleMailbox   = "mailbox"
+	AccountRoleMarketing = "marketing"
+
+	CallStatusInitiated = "initiated"
+	CallStatusAnswered  = "answered"
+	CallStatusMissed    = "missed"
+	CallStatusFailed    = "failed"
 
 	HITLAuto        = "auto"
 	HITLNeedsReview = "needs_review"
@@ -86,6 +110,7 @@ type Lead struct {
 	Title            string
 	DraftSubject     string
 	DraftBody        string
+	Status           string // new | contacted | interested | not_interested | unsubscribed | customer
 	EmailBounceProb  float64
 	EmailValidation  string
 	ConsentAt        *time.Time
@@ -197,7 +222,98 @@ type EmailAccount struct {
 	WarmupDay        int
 	WarmupEnabled    bool
 	ESPAPIKeyEnc     string
+	FromName         string // not persisted on email_accounts; set from marketing SMTP
 	CreatedAt        time.Time
+}
+
+// MarketingSMTP is the workspace-level paid ESP used for campaign blasts.
+type MarketingSMTP struct {
+	WorkspaceID int64
+	Provider    string
+	Host        string
+	Port        int
+	Username    string
+	PasswordEnc string
+	APIKeyEnc   string
+	FromEmail   string
+	FromName    string
+	DailyQuota  int
+	SentToday   int
+	QuotaDate   string
+	Enabled     bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (m MarketingSMTP) Configured() bool {
+	if !m.Enabled {
+		return false
+	}
+	if strings.TrimSpace(m.FromEmail) == "" {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(m.Provider)) {
+	case ProviderPostmark, ProviderSES, ProviderBrevo, ProviderSendGrid, ProviderMailgun:
+		return m.APIKeyEnc != "" || m.PasswordEnc != "" || (m.Host != "" && m.Username != "")
+	default:
+		return m.Host != "" && (m.PasswordEnc != "" || m.APIKeyEnc != "")
+	}
+}
+
+func (m MarketingSMTP) AsAccount() EmailAccount {
+	host, port := m.Host, m.Port
+	if host == "" || port == 0 {
+		h, p := MarketingPreset(m.Provider)
+		if host == "" {
+			host = h
+		}
+		if port == 0 {
+			port = p
+		}
+	}
+	return EmailAccount{
+		WorkspaceID:  m.WorkspaceID,
+		Email:        m.FromEmail,
+		Provider:     m.Provider,
+		SMTPHost:     host,
+		SMTPPort:     port,
+		Username:     m.Username,
+		PasswordEnc:  m.PasswordEnc,
+		ESPAPIKeyEnc: m.APIKeyEnc,
+		DailyQuota:   m.DailyQuota,
+		SentToday:    m.SentToday,
+		QuotaDate:    m.QuotaDate,
+		FromName:     m.FromName,
+	}
+}
+
+// MarketingPreset returns default SMTP host/port for a paid ESP.
+func MarketingPreset(provider string) (host string, port int) {
+	switch strings.ToLower(strings.TrimSpace(provider)) {
+	case ProviderBrevo:
+		return "smtp-relay.brevo.com", 587
+	case ProviderSendGrid:
+		return "smtp.sendgrid.net", 587
+	case ProviderMailgun:
+		return "smtp.mailgun.org", 587
+	case ProviderPostmark:
+		return "smtp.postmarkapp.com", 587
+	case ProviderSES:
+		return "email-smtp.us-east-1.amazonaws.com", 587
+	default:
+		return "", 587
+	}
+}
+
+// WorkspaceAI holds optional per-workspace LLM prompts and key override.
+type WorkspaceAI struct {
+	WorkspaceID    int64
+	SystemPrompt   string
+	BusinessPrompt string
+	OpenAIKeyEnc   string
+	OpenAIBaseURL  string
+	OpenAIModel    string
+	UpdatedAt      time.Time
 }
 
 type SequenceStep struct {
@@ -395,6 +511,74 @@ type DeliverabilityDecisionRow struct {
 	ISP            string
 	Reasons        string
 	CreatedAt      time.Time
+}
+
+// TelephonyAccount is one workspace's Tata Smartflo connection. Password and
+// permanent token are AES-GCM encrypted at rest like every other credential.
+type TelephonyAccount struct {
+	WorkspaceID   int64
+	Provider      string
+	BaseURL       string
+	LoginEmail    string
+	PasswordEnc   string
+	TokenEnc      string
+	AuthScheme    string
+	AgentNumber   string
+	CallerID      string
+	CallTimeout   int
+	WebhookSecret string
+	Enabled       bool
+	LastError     string
+	LastVerified  *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+// HasPassword / HasToken drive the UI without ever decrypting for display.
+func (t TelephonyAccount) HasPassword() bool { return t.PasswordEnc != "" }
+func (t TelephonyAccount) HasToken() bool    { return t.TokenEnc != "" }
+func (t TelephonyAccount) Configured() bool {
+	return t.TokenEnc != "" || (t.LoginEmail != "" && t.PasswordEnc != "")
+}
+
+// CallLog is one call, created on click-to-call and completed by webhook or
+// CDR sync. Provider identifiers are kept so both sources reconcile onto one row.
+type CallLog struct {
+	ID           int64
+	WorkspaceID  int64
+	LeadID       *int64
+	LeadName     string
+	UserID       int64
+	Provider     string
+	CallID       string
+	UUID         string
+	RefID        string
+	Direction    string
+	Status       string
+	AgentNumber  string
+	AgentName    string
+	ClientNumber string
+	CallerID     string
+	Duration     int
+	BillSec      int
+	RecordingURL string
+	HangupCause  string
+	Notes        string
+	StartedAt    *time.Time
+	AnsweredAt   *time.Time
+	EndedAt      *time.Time
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+// CallStats is the headline strip on /calls.
+type CallStats struct {
+	Total     int `json:"total"`
+	Answered  int `json:"answered"`
+	Missed    int `json:"missed"`
+	Today     int `json:"today"`
+	TalkTime  int `json:"talkTime"` // seconds
+	Connected int `json:"connected"`
 }
 
 type BlacklistCheck struct {

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Calls · OutReachCRM</title>
+  {{template "fonts" .}}
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body class="app-body">
+  {{template "nav" .}}
+
+  <div class="page-hero">
+    <div>
+      <h1>Calls</h1>
+      <p class="sub" style="margin-bottom:0">Tata Smartflo click-to-call — Smartflo rings your agent phone first, then the lead.</p>
+    </div>
+    <div class="row-actions">
+      {{if .Ready}}
+      <form method="post" action="/calls/sync" style="margin:0">
+        <input type="hidden" name="days" value="7">
+        <button class="secondary" type="submit" title="Pull call detail records from Smartflo">Sync CDRs (7d)</button>
+      </form>
+      {{end}}
+      <a class="topbar-link" href="/leads" style="border-color:var(--border)">Leads</a>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="stat"><div class="n">{{.Stats.Total}}</div><div class="l">Calls logged</div></div>
+    <div class="stat"><div class="n">{{.Stats.Answered}}</div><div class="l">Answered</div></div>
+    <div class="stat"><div class="n">{{.Stats.Missed}}</div><div class="l">Missed</div></div>
+    <div class="stat"><div class="n">{{.Stats.Today}}</div><div class="l">Today</div></div>
+    <div class="stat"><div class="n">{{hms .Stats.TalkTime}}</div><div class="l">Talk time</div></div>
+  </div>
+
+  <div class="panel" style="margin-top:1rem">
+    <h2 style="margin:0 0 0.5rem">Connection</h2>
+    {{if .Ready}}
+      <p style="margin:0"><span class="badge done">smartflo</span>
+        <span class="muted">
+          {{if .Account.HasToken}}Permanent access token{{else}}Token auth as {{.Account.LoginEmail}}{{end}}
+          {{if .Account.LastVerified}} · last verified {{.Account.LastVerified.Format "2006-01-02 15:04 UTC"}}{{end}}
+          {{if not .Account.Enabled}} · calling disabled{{end}}
+        </span>
+      </p>
+    {{else}}
+      <p style="margin:0"><span class="badge warn">not connected</span>
+        <span class="muted">Add Smartflo credentials below — the CRM exchanges them for a short-lived token and refreshes it automatically.</span>
+      </p>
+    {{end}}
+    {{if .Account.LastError}}
+    <p class="muted" style="margin:0.5rem 0 0;color:var(--bad,#c0392b)">Last error: {{.Account.LastError}}</p>
+    {{end}}
+    {{if .EnvDefault}}
+    <p class="muted" style="margin:0.5rem 0 0;font-size:0.82rem">Environment defaults (<code>SMARTFLO_*</code>) are set and used when this workspace has no credentials of its own.</p>
+    {{end}}
+    {{if and .User .User.IsAdmin .Ready}}
+    <div class="row-actions" style="margin-top:0.75rem">
+      <form method="post" action="/calls/test" style="margin:0">
+        <button class="secondary" type="submit" title="Request a token from Smartflo now">Test connection</button>
+      </form>
+      <form method="post" action="/calls/disconnect" style="margin:0" onsubmit="return confirm('Terminate the Smartflo token and clear stored credentials?')">
+        <button class="secondary" type="submit">Disconnect</button>
+      </form>
+    </div>
+    {{end}}
+  </div>
+
+  {{if and .User .User.IsAdmin}}
+  <details class="fold panel" {{if not .Ready}}open{{end}}>
+    <summary>Smartflo credentials</summary>
+    <form class="inline" method="post" action="/calls/settings" style="margin-top:0.85rem">
+      <label>API base URL<input name="base_url" value="{{.Account.BaseURL}}" placeholder="{{.BaseURL}}"></label>
+      <label>Login email<input name="login_email" type="email" value="{{.Account.LoginEmail}}" placeholder="you@company.com"></label>
+      <label>Password<input name="password" type="password" placeholder="{{if .Account.HasPassword}}stored — leave blank to keep{{else}}Smartflo password{{end}}"></label>
+      <label>Permanent token<input name="access_token" type="password" placeholder="{{if .Account.HasToken}}stored — leave blank to keep{{else}}optional, from Tata support{{end}}"></label>
+      <label>Auth header
+        <select name="auth_scheme">
+          <option value="" {{if eq .Account.AuthScheme ""}}selected{{end}}>auto (raw token, falls back to Bearer)</option>
+          <option value="Bearer" {{if eq .Account.AuthScheme "Bearer"}}selected{{end}}>Bearer &lt;token&gt;</option>
+        </select>
+      </label>
+      <label>Agent number<input name="agent_number" value="{{.Account.AgentNumber}}" placeholder="Smartflo agent ID / number"></label>
+      <label>Caller ID<input name="caller_id" value="{{.Account.CallerID}}" placeholder="DID shown to the lead"></label>
+      <label>Call timeout (s)<input name="call_timeout" type="number" min="0" value="{{.Account.CallTimeout}}"></label>
+      <label class="check-label"><span>Calling enabled</span><input type="checkbox" name="enabled" value="1" {{if .Account.Enabled}}checked{{end}}></label>
+      <label class="check-label"><span>Clear stored token</span><input type="checkbox" name="clear_token" value="1"></label>
+      <label class="check-label"><span>Rotate webhook secret</span><input type="checkbox" name="rotate_secret" value="1"></label>
+      <button type="submit">Save</button>
+    </form>
+    <p class="muted" style="margin:0.75rem 0 0;font-size:0.82rem">
+      Password and token are AES-GCM encrypted at rest. Short-lived tokens last 60 minutes and are refreshed automatically;
+      a permanent token skips login entirely.
+    </p>
+  </details>
+
+  <div class="panel">
+    <h2 style="margin:0 0 0.5rem">Webhook</h2>
+    {{if .WebhookURL}}
+    <p class="muted" style="margin:0 0 0.5rem">Paste this into Smartflo → Settings → Webhooks for <em>Call answered</em>, <em>Hangup (missed or answered)</em>, and <em>Click to call answered/missed</em>. GET or POST, JSON or form encoding — all are accepted.</p>
+    <pre style="margin:0;white-space:pre-wrap;overflow-x:auto"><code>{{.WebhookURL}}</code></pre>
+    <p class="muted" style="margin:0.5rem 0 0;font-size:0.82rem">The secret in the path is the only authentication Smartflo offers — rotate it above if it leaks.</p>
+    {{else}}
+    <p class="muted" style="margin:0">Save the connection to generate a webhook URL.</p>
+    {{end}}
+  </div>
+  {{end}}
+
+  <div class="panel camp-list">
+    <div class="camp-list-head">
+      <h2>Recent calls</h2>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="leads-table">
+        <thead><tr><th>When</th><th>Lead / number</th><th>Direction</th><th>Status</th><th>Talk</th><th>Recording</th></tr></thead>
+        <tbody>
+        {{range .Calls}}
+        <tr>
+          <td class="muted">{{if .StartedAt}}{{.StartedAt.Format "2006-01-02 15:04"}}{{else}}{{.CreatedAt.Format "2006-01-02 15:04"}}{{end}}</td>
+          <td>
+            {{if .LeadName}}<strong>{{.LeadName}}</strong>{{else}}<strong>Unmatched</strong>{{end}}
+            <div class="muted">{{if .ClientNumber}}{{.ClientNumber}}{{else}}—{{end}}{{if .AgentName}} · agent {{.AgentName}}{{end}}</div>
+          </td>
+          <td class="muted">{{if .Direction}}{{.Direction}}{{else}}—{{end}}</td>
+          <td><span class="badge {{badgeClass .Status}}">{{if .Status}}{{.Status}}{{else}}pending{{end}}</span>
+            {{if .HangupCause}}<div class="muted">{{.HangupCause}}</div>{{end}}</td>
+          <td>{{hms .BillSec}}</td>
+          <td>{{if .RecordingURL}}<a href="{{.RecordingURL}}" target="_blank" rel="noopener">listen</a>{{else}}—{{end}}</td>
+        </tr>
+        {{else}}
+        <tr><td colspan="6" class="muted" style="padding:1.25rem">No calls yet — hit <strong>Call</strong> on a lead once Smartflo is connected.</td></tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {{template "foot" .}}
+</body>
+</html>

@@ -111,9 +111,12 @@ func (w *Worker) process(ctx context.Context, msg models.OutboundMessage) error 
 		return w.Store.FailMessageRetry(msg.ID, "campaign daily limit", w.MaxAttempts+10, 30*time.Minute)
 	}
 
-	account, err := w.Store.PickAccount(camp.OwnerID, false)
+	account, usedMarketing, err := w.pickCampaignAccount(camp)
 	if err != nil {
 		backoff := time.Duration(1<<minInt(msg.Attempts, 4)) * time.Minute
+		if usedMarketing && strings.Contains(err.Error(), "quota") {
+			return w.Store.FailMessageRetry(msg.ID, err.Error(), w.MaxAttempts+10, 20*time.Minute)
+		}
 		if err == sql.ErrNoRows {
 			return w.Store.FailMessageRetry(msg.ID, "no account with quota", w.MaxAttempts, backoff)
 		}
@@ -277,7 +280,11 @@ func (w *Worker) process(ctx context.Context, msg models.OutboundMessage) error 
 		return err
 	}
 	_ = w.Store.SetMessageMeta(msg.ID, mid, msg.Variant)
-	if err := w.Store.MarkAccountSent(account.ID); err != nil {
+	if usedMarketing {
+		if err := w.Store.MarkMarketingSent(camp.WorkspaceID); err != nil {
+			return err
+		}
+	} else if err := w.Store.MarkAccountSent(account.ID); err != nil {
 		return err
 	}
 	w.Store.RecordISPSend(camp.WorkspaceID, isp)
@@ -325,6 +332,22 @@ func injectTracking(body, base string, a *auth.Manager, leadID, campaignID int64
 		b.WriteString(base + "/t/" + tok)
 	}
 	return b.String()
+}
+
+func (w *Worker) pickCampaignAccount(camp models.Campaign) (models.EmailAccount, bool, error) {
+	if m, err := w.Store.GetMarketingSMTP(camp.WorkspaceID); err == nil && m.Configured() {
+		acc := m.AsAccount()
+		eff := acc.DailyQuota
+		if eff <= 0 {
+			eff = 200
+		}
+		if acc.SentToday >= eff {
+			return models.EmailAccount{}, true, fmt.Errorf("marketing smtp daily quota")
+		}
+		return acc, true, nil
+	}
+	acc, err := w.Store.PickAccount(camp.OwnerID, false)
+	return acc, false, err
 }
 
 func (w *Worker) resolveCredentials(ctx context.Context, account *models.EmailAccount) (access, smtpPass, espKey string, err error) {
