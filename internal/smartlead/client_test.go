@@ -37,7 +37,7 @@ func TestListCampaignsAndLeadsPagination(t *testing.T) {
 
 	c := New("k")
 	c.BaseURL = srv.URL + "/api/v1"
-	c.MinSleep = 0
+	c.RatePerMin = -1 // no pacing against a local test server
 	c.HTTP = srv.Client()
 	c.LeadsPageSize = 2
 

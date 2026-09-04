@@ -21,18 +21,20 @@ type Options struct {
 }
 
 type Stats struct {
-	WorkspaceID   int64
-	OwnerID       int64
-	Campaigns     int
-	Steps         int
-	Accounts      int
-	Leads         int
-	Enrollments   int
-	Outbound      int
-	Replies       int
-	Suppressions  int
-	SkippedDupes  int
-	Errors        []string
+	WorkspaceID  int64
+	OwnerID      int64
+	Campaigns    int
+	Steps        int
+	Accounts     int
+	Leads        int
+	Enrollments  int
+	Outbound     int
+	Replies      int
+	Suppressions int
+	SkippedDupes int
+	Events       int
+	People       int
+	Errors       []string
 }
 
 func (s *Stats) err(msg string) {
@@ -143,6 +145,14 @@ func Run(st *store.Store, c *Client, opt Options) (Stats, error) {
 				_ = st.SmartleadRemember("campaign", remote, id)
 			}
 			out.Campaigns++
+			// Record whether this campaign measured opens and clicks. Most
+			// disable both, and scoring must read that as "not measured"
+			// rather than "not interested".
+			if localCamp > 0 {
+				if err := st.SetCampaignTracking(localCamp, detail.TrackOpens, detail.TrackClicks); err != nil {
+					slog.Warn("campaign tracking", "id", localCamp, "err", err)
+				}
+			}
 		}
 
 		steps, err := c.ListSequences(camp.ID)
@@ -393,9 +403,32 @@ func Run(st *store.Store, c *Client, opt Options) (Stats, error) {
 		out.Suppressions += len(blocked)
 	}
 
+	// Build the prospect-memory layer from whatever this run imported. It is
+	// idempotent, so running it after every import simply tops up: new leads
+	// become people, and people already present are left alone.
+	if !opt.DryRun {
+		res, err := st.BackfillProspects()
+		if err != nil {
+			out.err("prospect backfill: " + err.Error())
+		} else {
+			out.People = res.PeopleCreated
+			slog.Info("prospect backfill",
+				"people", res.PeopleCreated, "emails", res.EmailsCreated,
+				"employment", res.EmploymentCreated,
+				"messages_linked", res.MessagesLinked, "replies_linked", res.RepliesLinked)
+		}
+		if n, err := st.BackfillEventsFromMessages(out.WorkspaceID); err != nil {
+			out.err("event backfill: " + err.Error())
+		} else {
+			out.Events = n
+			slog.Info("prospect events", "created", n)
+		}
+	}
+
 	if !opt.DryRun {
 		st.Audit(out.WorkspaceID, ownerID, "smartlead.import.done", "workspace", strconv.FormatInt(out.WorkspaceID, 10),
-			fmt.Sprintf("campaigns=%d leads=%d enroll=%d sent=%d replies=%d", out.Campaigns, out.Leads, out.Enrollments, out.Outbound, out.Replies))
+			fmt.Sprintf("campaigns=%d leads=%d enroll=%d sent=%d replies=%d people=%d events=%d",
+				out.Campaigns, out.Leads, out.Enrollments, out.Outbound, out.Replies, out.People, out.Events))
 	}
 	return out, nil
 }
@@ -523,7 +556,7 @@ func upsertLead(st *store.Store, ownerID, wsID int64, ld Lead, leadStatus string
 	}
 	id, err = st.CreateLead(models.Lead{
 		OwnerID: ownerID, WorkspaceID: wsID,
-		Name: LeadDisplayName(ld.FirstName, ld.LastName, email),
+		Name:  LeadDisplayName(ld.FirstName, ld.LastName, email),
 		Email: email, Phone: ld.Phone, Website: ld.Website,
 		Company: ld.Company, Title: ld.Title, Notes: notes,
 		Source: "smartlead", EnrichmentStatus: "pending",

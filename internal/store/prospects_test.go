@@ -320,3 +320,62 @@ func TestBackfillOnPostgres(t *testing.T) {
 		t.Errorf("second run created %d people, want 0", second.PeopleCreated)
 	}
 }
+
+func TestBackfillEventsFromMessagesDedupes(t *testing.T) {
+	st := newTestStore(t)
+	leadID, err := st.CreateLead(models.Lead{OwnerID: 1, WorkspaceID: 1, Name: "Ada", Email: "ada@ex.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	campID, err := st.CreateCampaign(models.Campaign{OwnerID: 1, WorkspaceID: 1, Name: "C", Status: "paused"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.AddStep(models.SequenceStep{CampaignID: campID, StepOrder: 1, SubjectTemplate: "Hi", BodySpintax: "Hello"}); err != nil {
+		t.Fatal(err)
+	}
+	clID, err := st.ImportCampaignLead(campID, leadID, 1, "completed", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sent := time.Now().UTC().Add(-72 * time.Hour)
+	if _, _, err := st.InsertHistoricalOutbound(models.OutboundMessage{
+		CampaignID: campID, LeadID: leadID, CampaignLeadID: clID, StepOrder: 1,
+		ToEmail: "ada@ex.com", Subject: "Hi", Body: "Hello", Status: "sent",
+		SentAt: &sent,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.BackfillProspects(); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := st.BackfillEventsFromMessages(1)
+	if err != nil {
+		t.Fatalf("event backfill: %v", err)
+	}
+	if first == 0 {
+		t.Fatal("expected at least one sent event")
+	}
+
+	// Re-running an import must not double-count history.
+	second, err := st.BackfillEventsFromMessages(1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second != 0 {
+		t.Errorf("second run created %d events, want 0", second)
+	}
+
+	p, err := st.FindPersonByEmail(1, "ada@ex.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := st.CountEvents(p.ID, models.EventSent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Errorf("sent events = %d, want exactly 1", n)
+	}
+}

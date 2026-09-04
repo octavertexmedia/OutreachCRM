@@ -427,3 +427,78 @@ func boolInt(b bool) int {
 	}
 	return 0
 }
+
+// BackfillEventsFromMessages derives the append-only event log from messages
+// already imported. It runs after BackfillProspects, when person_id is set, so
+// it can work set-based instead of resolving an identity per row — the same
+// reason the design puts identity work after the raw import rather than inside
+// its pagination loop.
+//
+// Every event carries a deterministic dedupe_key, so running this repeatedly
+// tops up rather than double-counting history.
+func (s *Store) BackfillEventsFromMessages(workspaceID int64) (int, error) {
+	t := fmtTime(now())
+	total := 0
+
+	// Sent mail. Note `'sent:' || m.id` concatenates in both engines.
+	n, err := s.execCount(`
+INSERT OR IGNORE INTO prospect_event
+  (person_id, workspace_id, campaign_id, kind, occurred_at, payload, source, dedupe_key, created_at)
+SELECT m.person_id, ?, m.campaign_id, ?, m.sent_at, '{}', 'smartlead_import',
+       'sent:' || m.id, ?
+FROM outbound_messages m
+WHERE m.person_id IS NOT NULL
+  AND m.status = 'sent'
+  AND m.sent_at IS NOT NULL AND m.sent_at <> ''`,
+		workspaceID, models.EventSent, t)
+	if err != nil {
+		return total, err
+	}
+	total += n
+
+	// Bounces. Smartlead exposes no bounce type, so these are recorded without
+	// a hard/soft distinction and must not be read as a job change on their own.
+	n, err = s.execCount(`
+INSERT OR IGNORE INTO prospect_event
+  (person_id, workspace_id, campaign_id, kind, occurred_at, payload, source, dedupe_key, created_at)
+SELECT m.person_id, ?, m.campaign_id, ?, COALESCE(NULLIF(m.sent_at,''), ?), '{}', 'smartlead_import',
+       'bounce:' || m.id, ?
+FROM outbound_messages m
+WHERE m.person_id IS NOT NULL AND m.status = 'dead'`,
+		workspaceID, models.EventBounce, t, t)
+	if err != nil {
+		return total, err
+	}
+	total += n
+
+	// Replies. Auto-replies are excluded here rather than filtered later: an
+	// out-of-office is not evidence of interest, and once it is in the event
+	// log every downstream score has to remember to ignore it.
+	n, err = s.execCount(`
+INSERT OR IGNORE INTO prospect_event
+  (person_id, workspace_id, campaign_id, kind, occurred_at, payload, source, dedupe_key, created_at)
+SELECT r.person_id, ?, 0, ?, r.created_at, '{}', 'smartlead_import',
+       'reply:' || r.id, ?
+FROM inbound_replies r
+WHERE r.person_id IS NOT NULL
+  AND COALESCE(r.auto_reply, 0) = 0`,
+		workspaceID, models.EventReply, t)
+	if err != nil {
+		return total, err
+	}
+	total += n
+
+	return total, nil
+}
+
+func (s *Store) execCount(q string, args ...any) (int, error) {
+	r, err := s.db.Exec(q, args...)
+	if err != nil {
+		return 0, err
+	}
+	n, err := r.RowsAffected()
+	if err != nil {
+		return 0, nil
+	}
+	return int(n), nil
+}

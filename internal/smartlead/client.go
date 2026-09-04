@@ -8,24 +8,81 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 const DefaultBaseURL = "https://server.smartlead.ai/api/v1"
 
+// Verified against the live API on 2026-09-05: limit=1000 returns 1000 rows,
+// limit=2000 returns an empty array with HTTP 200. Never raise these above
+// maxPageSize — an over-large limit looks exactly like end-of-data.
 const (
-	defaultLeadsPageSize = 100
-	defaultStatsPageSize = 500
+	defaultLeadsPageSize = 1000
+	defaultStatsPageSize = 1000
+	maxPageSize          = 1000
 )
+
+// DefaultRatePerMin sits just under Smartlead's documented 60 requests per 60
+// seconds, leaving headroom so live webhook traffic on the same key cannot
+// starve a long import.
+const DefaultRatePerMin = 55
 
 type Client struct {
 	BaseURL       string
 	APIKey        string
 	HTTP          *http.Client
-	MinSleep      time.Duration
 	MaxRetries    int
 	LeadsPageSize int
 	StatsPageSize int
+
+	// RatePerMin caps outbound requests. Zero means DefaultRatePerMin; a
+	// negative value disables limiting, which is only useful in tests.
+	RatePerMin int
+
+	limiterOnce sync.Once
+	limiter     *paceLimiter
+}
+
+// paceLimiter spaces requests evenly rather than allowing a burst that would
+// immediately trip the API limit. Every caller on this client shares it, so
+// concurrent workers cannot collectively exceed the budget.
+type paceLimiter struct {
+	mu       sync.Mutex
+	interval time.Duration
+	next     time.Time
+}
+
+func (l *paceLimiter) wait() {
+	if l == nil || l.interval <= 0 {
+		return
+	}
+	l.mu.Lock()
+	now := time.Now()
+	if l.next.After(now) {
+		d := l.next.Sub(now)
+		l.next = l.next.Add(l.interval)
+		l.mu.Unlock()
+		time.Sleep(d)
+		return
+	}
+	l.next = now.Add(l.interval)
+	l.mu.Unlock()
+}
+
+func (c *Client) pace() *paceLimiter {
+	c.limiterOnce.Do(func() {
+		n := c.RatePerMin
+		if n == 0 {
+			n = DefaultRatePerMin
+		}
+		if n < 0 {
+			c.limiter = &paceLimiter{}
+			return
+		}
+		c.limiter = &paceLimiter{interval: time.Minute / time.Duration(n)}
+	})
+	return c.limiter
 }
 
 func New(apiKey string) *Client {
@@ -33,7 +90,6 @@ func New(apiKey string) *Client {
 		BaseURL:    DefaultBaseURL,
 		APIKey:     NormalizeAPIKey(apiKey),
 		HTTP:       &http.Client{Timeout: 60 * time.Second},
-		MinSleep:   80 * time.Millisecond,
 		MaxRetries: 5,
 	}
 }
@@ -72,9 +128,7 @@ func (c *Client) get(path string, q url.Values) ([]byte, error) {
 
 	var lastErr error
 	for attempt := 0; attempt <= c.MaxRetries; attempt++ {
-		if c.MinSleep > 0 && attempt == 0 {
-			time.Sleep(c.MinSleep)
-		}
+		c.pace().wait()
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
 			return nil, err
@@ -91,7 +145,12 @@ func (c *Client) get(path string, q url.Values) ([]byte, error) {
 		_ = resp.Body.Close()
 		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
 			lastErr = fmt.Errorf("smartlead %s: HTTP %d", path, resp.StatusCode)
-			time.Sleep(backoff(attempt))
+			wait := backoff(attempt)
+			// The server knows better than our backoff curve when it says so.
+			if ra := retryAfter(resp.Header.Get("Retry-After")); ra > 0 {
+				wait = ra
+			}
+			time.Sleep(wait)
 			continue
 		}
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -100,6 +159,23 @@ func (c *Client) get(path string, q url.Values) ([]byte, error) {
 		return body, nil
 	}
 	return nil, lastErr
+}
+
+// retryAfter parses a Retry-After header given as delay-seconds. The HTTP-date
+// form is not used by this API and is ignored rather than guessed at.
+func retryAfter(v string) time.Duration {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return 0
+	}
+	secs, err := strconv.Atoi(v)
+	if err != nil || secs <= 0 {
+		return 0
+	}
+	if secs > 120 {
+		secs = 120
+	}
+	return time.Duration(secs) * time.Second
 }
 
 func backoff(attempt int) time.Duration {
@@ -119,13 +195,19 @@ func truncate(s string, n int) string {
 }
 
 type Campaign struct {
-	ID             int64
-	Name           string
-	Status         string
-	Timezone       string
+	ID              int64
+	Name            string
+	Status          string
+	Timezone        string
 	SendWindowStart int
 	SendWindowEnd   int
 	DailySendLimit  int
+
+	// TrackOpens / TrackClicks come from the campaign's track_settings. Six of
+	// seven live campaigns disable both, so engagement was never recorded for
+	// most of the base. Scoring has to tell that apart from "not interested".
+	TrackOpens  bool
+	TrackClicks bool
 }
 
 type SequenceStep struct {
@@ -138,27 +220,27 @@ type SequenceStep struct {
 }
 
 type EmailAccount struct {
-	ID          int64
-	Email       string
-	FromName    string
-	Warmup      bool
-	MessageDay  int
+	ID         int64
+	Email      string
+	FromName   string
+	Warmup     bool
+	MessageDay int
 }
 
 type Lead struct {
-	ID            int64
-	Email         string
-	FirstName     string
-	LastName      string
-	Phone         string
-	Company       string
-	Website       string
-	Title         string
-	Status        string
-	CustomJSON    string
-	Unsubscribed  bool
-	LastSeqSent   int
-	ReplyCount    int
+	ID           int64
+	Email        string
+	FirstName    string
+	LastName     string
+	Phone        string
+	Company      string
+	Website      string
+	Title        string
+	Status       string
+	CustomJSON   string
+	Unsubscribed bool
+	LastSeqSent  int
+	ReplyCount   int
 }
 
 type StatRow struct {
@@ -174,6 +256,25 @@ type StatRow struct {
 	StatsID      string
 	EmailSubject string
 	EmailMessage string
+
+	// Timestamps, where the campaign recorded them. OpenAt and ClickAt are
+	// empty on any campaign with tracking disabled, which is most of them.
+	OpenAt  string
+	ClickAt string
+	ReplyAt string
+
+	OpenCount  int
+	ClickCount int
+
+	// Category is Smartlead's own reply classification ("Meeting Request",
+	// "Out Of Office", ...). It arrives free on every row, so no separate
+	// classification call is needed for the common cases.
+	Category string
+
+	// IgnoreReply is Smartlead's auto-reply hint. Treat it as a positive
+	// signal only: in a live sample it flagged 17 replies while 31 of 57
+	// arrived within two minutes of the send. Its absence proves nothing.
+	IgnoreReply bool
 }
 
 type HistoryMsg struct {
@@ -192,16 +293,26 @@ type PageMeta struct {
 
 func (c *Client) leadsLimit() int {
 	if c != nil && c.LeadsPageSize > 0 {
-		return c.LeadsPageSize
+		return clampPageSize(c.LeadsPageSize)
 	}
 	return defaultLeadsPageSize
 }
 
 func (c *Client) statsLimit() int {
 	if c != nil && c.StatsPageSize > 0 {
-		return c.StatsPageSize
+		return clampPageSize(c.StatsPageSize)
 	}
 	return defaultStatsPageSize
+}
+
+// clampPageSize keeps a caller from asking for more than the API will serve.
+// Above the cap it returns an empty page with HTTP 200, which is
+// indistinguishable from end-of-data and would silently truncate an import.
+func clampPageSize(n int) int {
+	if n > maxPageSize {
+		return maxPageSize
+	}
+	return n
 }
 
 func (c *Client) ListCampaigns() ([]Campaign, error) {
@@ -419,6 +530,13 @@ func parseStatRow(it map[string]any) (StatRow, bool) {
 		StatsID:      strVal(it, "id", "stats_id", "email_id"),
 		EmailSubject: strVal(it, "email_subject", "subject"),
 		EmailMessage: firstNonEmpty(strVal(it, "email_message", "email_body", "email_html", "body", "html")),
+		OpenAt:       strVal(it, "open_time", "opened_at"),
+		ClickAt:      strVal(it, "click_time", "clicked_at"),
+		ReplyAt:      strVal(it, "reply_time", "replied_at"),
+		OpenCount:    intVal(it, "open_count"),
+		ClickCount:   intVal(it, "click_count"),
+		Category:     strVal(it, "lead_category", "category"),
+		IgnoreReply:  boolVal(it, "ignore_reply"),
 	}, true
 }
 
@@ -440,6 +558,13 @@ func (c *Client) EachStatistics(campaignID int64, fn func(page []StatRow, meta P
 		total := intFromWrapper(raw, "total_stats", "total", "count", "total_count")
 		items := extractObjects(raw, "data", "stats", "list", "results")
 		if len(items) == 0 {
+			// An empty first page when the server reports rows means the
+			// request was rejected in a way that still returned HTTP 200 —
+			// an over-large limit does exactly this. Treating it as
+			// end-of-data would silently import nothing.
+			if offset == 0 && total > 0 {
+				return fmt.Errorf("smartlead statistics campaign %d: empty first page but total_stats=%d (limit %d may exceed the server maximum of %d)", campaignID, total, limit, maxPageSize)
+			}
 			break
 		}
 		fp := pageFingerprint(items, "id", "lead_email", "email")
@@ -585,6 +710,7 @@ func parseCampaign(it map[string]any) Campaign {
 	if limit <= 0 {
 		limit = 50
 	}
+	openTrk, clickTrk := parseTrackSettings(it["track_settings"])
 	return Campaign{
 		ID:              int64Val(it, "id", "campaign_id"),
 		Name:            strVal(it, "name", "campaign_name"),
@@ -593,7 +719,30 @@ func parseCampaign(it map[string]any) Campaign {
 		SendWindowStart: start,
 		SendWindowEnd:   end,
 		DailySendLimit:  limit,
+		TrackOpens:      openTrk,
+		TrackClicks:     clickTrk,
 	}
+}
+
+// parseTrackSettings reads Smartlead's track_settings, which lists what is
+// DISABLED — an empty array means full tracking. Absent or unparseable settings
+// default to tracked, so a missing field can never invent a penalty for a
+// prospect who simply was not measured.
+func parseTrackSettings(v any) (opens, clicks bool) {
+	opens, clicks = true, true
+	list, ok := v.([]any)
+	if !ok {
+		return
+	}
+	for _, item := range list {
+		switch strings.ToUpper(strings.TrimSpace(fmt.Sprint(item))) {
+		case "DONT_EMAIL_OPEN":
+			opens = false
+		case "DONT_LINK_CLICK":
+			clicks = false
+		}
+	}
+	return
 }
 
 func parseLead(it map[string]any) Lead {

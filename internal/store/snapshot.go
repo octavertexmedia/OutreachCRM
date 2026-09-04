@@ -399,39 +399,39 @@ func geoCodeFromHost(host string) string {
 }
 
 type geoInfo struct {
-	name       string
-	lat, lng   float64
+	name     string
+	lat, lng float64
 }
 
 var geoTable = map[string]geoInfo{
-	"in":  {"India", 20.59, 78.96},
-	"us":  {"United States", 37.09, -95.71},
-	"uk":  {"United Kingdom", 55.38, -3.44},
+	"in":    {"India", 20.59, 78.96},
+	"us":    {"United States", 37.09, -95.71},
+	"uk":    {"United Kingdom", 55.38, -3.44},
 	"co.uk": {"United Kingdom", 55.38, -3.44},
-	"de":  {"Germany", 51.17, 10.45},
-	"fr":  {"France", 46.23, 2.21},
-	"au":  {"Australia", -25.27, 133.78},
-	"ca":  {"Canada", 56.13, -106.35},
-	"sg":  {"Singapore", 1.35, 103.82},
-	"ae":  {"UAE", 23.42, 53.85},
-	"nl":  {"Netherlands", 52.13, 5.29},
-	"ie":  {"Ireland", 53.14, -7.69},
-	"jp":  {"Japan", 36.20, 138.25},
-	"kr":  {"South Korea", 35.91, 127.7},
-	"br":  {"Brazil", -14.24, -51.93},
-	"mx":  {"Mexico", 23.63, -102.55},
-	"za":  {"South Africa", -30.56, 22.94},
-	"se":  {"Sweden", 60.13, 18.64},
-	"ch":  {"Switzerland", 46.82, 8.22},
-	"es":  {"Spain", 40.46, -3.75},
-	"it":  {"Italy", 41.87, 12.57},
-	"pl":  {"Poland", 51.92, 19.15},
-	"id":  {"Indonesia", -0.79, 113.92},
-	"ph":  {"Philippines", 12.88, 121.77},
-	"my":  {"Malaysia", 4.21, 101.98},
-	"nz":  {"New Zealand", -40.90, 174.89},
-	"INTL": {"International (.com/.io)", 20, 0},
-	"XX":  {"Unknown", 10, 20},
+	"de":    {"Germany", 51.17, 10.45},
+	"fr":    {"France", 46.23, 2.21},
+	"au":    {"Australia", -25.27, 133.78},
+	"ca":    {"Canada", 56.13, -106.35},
+	"sg":    {"Singapore", 1.35, 103.82},
+	"ae":    {"UAE", 23.42, 53.85},
+	"nl":    {"Netherlands", 52.13, 5.29},
+	"ie":    {"Ireland", 53.14, -7.69},
+	"jp":    {"Japan", 36.20, 138.25},
+	"kr":    {"South Korea", 35.91, 127.7},
+	"br":    {"Brazil", -14.24, -51.93},
+	"mx":    {"Mexico", 23.63, -102.55},
+	"za":    {"South Africa", -30.56, 22.94},
+	"se":    {"Sweden", 60.13, 18.64},
+	"ch":    {"Switzerland", 46.82, 8.22},
+	"es":    {"Spain", 40.46, -3.75},
+	"it":    {"Italy", 41.87, 12.57},
+	"pl":    {"Poland", 51.92, 19.15},
+	"id":    {"Indonesia", -0.79, 113.92},
+	"ph":    {"Philippines", 12.88, 121.77},
+	"my":    {"Malaysia", 4.21, 101.98},
+	"nz":    {"New Zealand", -40.90, 174.89},
+	"INTL":  {"International (.com/.io)", 20, 0},
+	"XX":    {"Unknown", 10, 20},
 }
 
 func geoMeta(code string) geoInfo {

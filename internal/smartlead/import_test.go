@@ -53,7 +53,7 @@ func TestImportResumeFillsStatsAndReplies(t *testing.T) {
 
 	client := New("k")
 	client.BaseURL = srv.URL + "/api/v1"
-	client.MinSleep = 0
+	client.RatePerMin = -1 // no pacing against a local test server
 	client.HTTP = srv.Client()
 
 	wsID, err := st.EnsureNamedWorkspace("Smartlead")
@@ -169,7 +169,7 @@ func TestEachStatisticsStreamsPages(t *testing.T) {
 	defer srv.Close()
 	c := New("k")
 	c.BaseURL = srv.URL + "/api/v1"
-	c.MinSleep = 0
+	c.RatePerMin = -1 // no pacing against a local test server
 	c.HTTP = srv.Client()
 	c.StatsPageSize = 2
 
@@ -206,7 +206,7 @@ func TestListStatisticsParsesBodies(t *testing.T) {
 	defer srv.Close()
 	c := New("k")
 	c.BaseURL = srv.URL + "/api/v1"
-	c.MinSleep = 0
+	c.RatePerMin = -1 // no pacing against a local test server
 	c.HTTP = srv.Client()
 	rows, err := c.ListStatistics(3)
 	if err != nil || len(rows) != 1 {
@@ -265,7 +265,7 @@ func TestImportStreamsStatisticsPages(t *testing.T) {
 
 	client := New("k")
 	client.BaseURL = srv.URL + "/api/v1"
-	client.MinSleep = 0
+	client.RatePerMin = -1 // no pacing against a local test server
 	client.HTTP = srv.Client()
 	client.StatsPageSize = 1
 

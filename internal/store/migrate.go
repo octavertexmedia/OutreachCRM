@@ -163,6 +163,9 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 	{11, `
 -- prospect memory: durable identity, address history, employment, events
 `},
+	{12, `
+-- resumable import cursors
+`},
 }
 
 func (s *Store) migrate() error {
@@ -246,6 +249,12 @@ func (s *Store) migrate() error {
 		}
 		if m.version == 11 {
 			if err := upgradeProspectMemory(tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("migration %d: %w", m.version, err)
+			}
+		}
+		if m.version == 12 {
+			if err := upgradeImportCursor(tx); err != nil {
 				_ = tx.Rollback()
 				return fmt.Errorf("migration %d: %w", m.version, err)
 			}
@@ -762,4 +771,28 @@ CREATE TABLE IF NOT EXISTS campaign_tracking (
 	_, _ = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_outbound_person ON outbound_messages(person_id)`)
 	_, _ = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_replies_person ON inbound_replies(person_id)`)
 	return nil
+}
+
+// upgradeImportCursor adds resumable import state. A five-year backfill is long
+// enough that something will interrupt it — an SSH drop already corrupted one
+// run — so progress is committed per page and a restart resumes from the last
+// completed page rather than from the beginning.
+func upgradeImportCursor(tx *tx) error {
+	_, err := tx.Exec(`
+CREATE TABLE IF NOT EXISTS import_cursor (
+  source       TEXT NOT NULL,
+  resource     TEXT NOT NULL,
+  campaign_id  INTEGER NOT NULL DEFAULT 0,
+  next_offset  INTEGER NOT NULL DEFAULT 0,
+  rows_done    INTEGER NOT NULL DEFAULT 0,
+  total_hint   INTEGER NOT NULL DEFAULT 0,
+  completed_at TEXT,
+  last_error   TEXT NOT NULL DEFAULT '',
+  attempts     INTEGER NOT NULL DEFAULT 0,
+  updated_at   TEXT NOT NULL,
+  PRIMARY KEY (source, resource, campaign_id)
+);
+CREATE INDEX IF NOT EXISTS idx_import_cursor_open ON import_cursor(source, completed_at);
+`)
+	return err
 }
