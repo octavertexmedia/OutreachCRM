@@ -2,8 +2,36 @@
 # Host port 8003 → container :8080. CI rewrites image to outreachcrm-app:latest.
 # OpenBao lives in ~/revnext-secrets (secrets.revnext.in) — never start/stop it here.
 # Bootstrap .env holds OPENBAO_* only; app secrets come from KV.
+#
+# Postgres (pgvector) backs the CRM store + /search when DATABASE_URL is set.
+# It is intentionally NOT set here: deploying this file alone changes nothing.
+# To cut over (see HANDBOOK "CRM store ports to Postgres"):
+#   1. deploy — postgres comes up, app stays on SQLite
+#   2. docker compose exec app /app/sqlite-to-postgres --data-dir /data \
+#        --database-url "$DATABASE_URL" --dry-run   (then without --dry-run)
+#   3. put DATABASE_URL in .env, then: docker compose up -d app
+# Rollback is removing DATABASE_URL and restarting: SQLite is left untouched.
 
 services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-outreach}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-outreach}
+      POSTGRES_DB: ${POSTGRES_DB:-outreachcrm}
+    volumes:
+      - outreach_pgdata:/var/lib/postgresql/data
+    # Not published to the host: reachable only on the compose network.
+    expose:
+      - "5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
   app:
     image: ghcr.io/placeholder/outreachcrm:latest
     build:
@@ -13,14 +41,20 @@ services:
     environment:
       ADDR: ":8080"
       DATA_DIR: /data
+      # Empty unless set in .env — empty keeps the SQLite store.
+      DATABASE_URL: ${DATABASE_URL:-}
       # Host-published OpenBao from ~/revnext-secrets (override in .env).
       # Prefer docker network alias openbao when linked — set OPENBAO_ADDR in .env.
       OPENBAO_ADDR: ${OPENBAO_ADDR:-https://secrets.revnext.in}
     volumes:
       - outreach_data:/data
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "127.0.0.1:8003:8080"
 
 volumes:
   outreach_data:
+  outreach_pgdata:

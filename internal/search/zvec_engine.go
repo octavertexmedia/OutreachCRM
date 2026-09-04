@@ -190,6 +190,10 @@ func (e *zvecEngine) embedText(text string) []float32 {
 	return vec
 }
 
+// zvecMaxWriteBatch is Zvec's server-side cap on docs per write (1024). Stay
+// just under it so a full reindex is chunked instead of rejected.
+const zvecMaxWriteBatch = 1000
+
 func (e *zvecEngine) Upsert(docs []Document) error {
 	if len(docs) == 0 {
 		return nil
@@ -237,8 +241,17 @@ func (e *zvecEngine) Upsert(docs []Document) error {
 		}
 	}()
 
-	if _, err := e.col.Upsert(batch); err != nil {
-		return err
+	// Zvec rejects writes larger than its max batch size, so send it in chunks.
+	// A single Upsert of a full reindex (tens of thousands of docs) fails with
+	// "Too many docs: N exceeds max write batch size".
+	for start := 0; start < len(batch); start += zvecMaxWriteBatch {
+		end := start + zvecMaxWriteBatch
+		if end > len(batch) {
+			end = len(batch)
+		}
+		if _, err := e.col.Upsert(batch[start:end]); err != nil {
+			return err
+		}
 	}
 	return e.col.Flush()
 }

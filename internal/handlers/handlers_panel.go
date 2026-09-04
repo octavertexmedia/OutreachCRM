@@ -26,7 +26,9 @@ func (s *Server) panelLead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hist := s.Store.GetRecipientHistory(lead.Email)
-	s.render(w, "panel_lead.html", map[string]any{"Lead": lead, "History": hist, "User": u})
+	calls := s.Store.ListCallLogsForLead(lead.ID, 5)
+	mail, _ := s.Store.ListLeadMail(lead.ID, 40)
+	s.render(w, "panel_lead.html", map[string]any{"Lead": lead, "History": hist, "Calls": calls, "Mail": mail, "User": u})
 }
 
 func (s *Server) panelCampaign(w http.ResponseWriter, r *http.Request) {

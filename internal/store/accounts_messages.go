@@ -112,17 +112,13 @@ func (s *Store) CreateAccount(a models.EmailAccount) (int64, error) {
 	if a.WarmupEnabled {
 		warm = 1
 	}
-	res, err := s.db.Exec(`INSERT INTO email_accounts(owner_id, workspace_id, email, provider, smtp_host, smtp_port, username, password_enc,
+	return s.db.InsertID(`INSERT INTO email_accounts(owner_id, workspace_id, email, provider, smtp_host, smtp_port, username, password_enc,
 		access_token_enc, refresh_token_enc, token_expiry, imap_host, imap_port, imap_last_uid, daily_quota, sent_today, quota_date,
 		domain, domain_daily_limit, warmup_day, warmup_enabled, esp_api_key_enc, created_at)
 		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,0,'',?,?,0,?,?,?)`,
 		a.OwnerID, a.WorkspaceID, a.Email, a.Provider, a.SMTPHost, a.SMTPPort, a.Username, a.PasswordEnc,
 		a.AccessTokenEnc, a.RefreshTokenEnc, nilStr(a.TokenExpiry), a.IMAPHost, a.IMAPPort, a.DailyQuota,
 		a.Domain, a.DomainDailyLimit, warm, a.ESPAPIKeyEnc, fmtTime(now()))
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
 }
 
 func nilStr(t *time.Time) any {
@@ -314,6 +310,13 @@ func (s *Store) CountCampaignSentToday(campaignID int64) (int, error) {
 }
 
 func (s *Store) ListReplies(admin bool, ownerID int64) ([]models.InboundReply, error) {
+	return s.ListRepliesScoped(admin, ownerID, 0, 100)
+}
+
+func (s *Store) ListRepliesScoped(admin bool, ownerID, workspaceID int64, limit int) ([]models.InboundReply, error) {
+	if limit <= 0 {
+		limit = 200
+	}
 	q := `SELECT id, owner_id, workspace_id, lead_id, lead_name, from_email, subject, body, intent, COALESCE(message_id,''), COALESCE(thread_id,''), COALESCE(hitl_status,'auto'), created_at
 		FROM inbound_replies WHERE 1=1`
 	var args []any
@@ -321,7 +324,12 @@ func (s *Store) ListReplies(admin bool, ownerID int64) ([]models.InboundReply, e
 		q += ` AND (owner_id=? OR owner_id IS NULL)`
 		args = append(args, ownerID)
 	}
-	q += ` ORDER BY id DESC LIMIT 100`
+	if workspaceID > 0 {
+		q += ` AND (workspace_id=? OR workspace_id IS NULL)`
+		args = append(args, workspaceID)
+	}
+	q += ` ORDER BY id DESC LIMIT ?`
+	args = append(args, limit)
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
@@ -356,12 +364,12 @@ func (s *Store) CreateReply(r models.InboundReply) (int64, error) {
 	if r.WorkspaceID != nil {
 		wsID = *r.WorkspaceID
 	}
-	res, err := s.db.Exec(`INSERT INTO inbound_replies(owner_id, workspace_id, lead_id, lead_name, from_email, subject, body, intent, message_id, thread_id, hitl_status, created_at)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, ownerID, wsID, leadID, r.LeadName, r.FromEmail, r.Subject, r.Body, r.Intent, r.MessageID, r.ThreadID, r.HITLStatus, fmtTime(now()))
-	if err != nil {
-		return 0, err
+	created := now()
+	if !r.CreatedAt.IsZero() {
+		created = r.CreatedAt
 	}
-	return res.LastInsertId()
+	return s.db.InsertID(`INSERT INTO inbound_replies(owner_id, workspace_id, lead_id, lead_name, from_email, subject, body, intent, message_id, thread_id, hitl_status, created_at)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, ownerID, wsID, leadID, r.LeadName, r.FromEmail, r.Subject, r.Body, r.Intent, r.MessageID, r.ThreadID, r.HITLStatus, fmtTime(created))
 }
 
 func (s *Store) IsSuppressed(email string) (bool, error) {

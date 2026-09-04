@@ -594,12 +594,13 @@ func (s *Server) leadsEnrichAll(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) queueGet(w http.ResponseWriter, r *http.Request) {
 	u := s.current(r)
-	msgs, err := s.Store.ListQueue(u.IsAdmin(), u.ID, 100)
+	msgs, err := s.Store.ListQueueWS(u.IsAdmin(), u.ID, u.WorkspaceID, 100)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	s.render(w, "queue.html", map[string]any{"Nav": "queue", "User": u, "Messages": msgs})
+	sent, _ := s.Store.ListSentHistory(u.IsAdmin(), u.ID, u.WorkspaceID, 200)
+	s.render(w, "queue.html", map[string]any{"Nav": "queue", "User": u, "Messages": msgs, "Sent": sent})
 }
 
 func (s *Server) campaignsGet(w http.ResponseWriter, r *http.Request) {
@@ -894,7 +895,7 @@ func (s *Server) oauthCallback(w http.ResponseWriter, r *http.Request, provider 
 
 func (s *Server) inboxGet(w http.ResponseWriter, r *http.Request) {
 	u := s.current(r)
-	replies, err := s.Store.ListReplies(u.IsAdmin(), u.ID)
+	replies, err := s.Store.ListRepliesScoped(u.IsAdmin(), u.ID, u.WorkspaceID, 200)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -945,7 +946,7 @@ func (s *Server) inboxClassify(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	replies, _ := s.Store.ListReplies(u.IsAdmin(), u.ID)
+	replies, _ := s.Store.ListRepliesScoped(u.IsAdmin(), u.ID, u.WorkspaceID, 200)
 	for _, rp := range replies {
 		if rp.ID == id {
 			s.render(w, "reply_row.html", rp)

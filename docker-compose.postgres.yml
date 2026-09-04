@@ -1,0 +1,29 @@
+# Local/dev Postgres + pgvector. Does not replace production SQLite.
+# Usage:
+#   make postgres-up
+#   export DATABASE_URL='postgres://outreach:outreach@127.0.0.1:55432/outreachcrm?sslmode=disable'
+# CRM operational data stays in SQLite (DATA_DIR). This instance is the optional search index.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: outreachcrm-postgres
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:55432:5432"
+    environment:
+      POSTGRES_USER: outreach
+      POSTGRES_PASSWORD: outreach
+      POSTGRES_DB: outreachcrm
+    volumes:
+      - outreachcrm_pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  outreachcrm_pgdata:

@@ -36,7 +36,7 @@
     <a class="dash-kpi" href="/queue">
       <div class="dash-kpi-n">{{.Analytics.Sent}}</div>
       <div class="dash-kpi-l">Messages sent</div>
-      <div class="dash-kpi-s muted">{{.Stats.SentToday}} today · {{.Stats.Scheduled}} queued</div>
+      <div class="dash-kpi-s muted">{{.Stats.SentToday}} today · {{.Analytics.Replies}} replies · {{.Stats.Scheduled}} queued</div>
     </a>
     <a class="dash-kpi" href="/hitl">
       <div class="dash-kpi-n">{{printf "%.1f" .Analytics.ReplyRate}}%</div>

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/manishkumar/outreachcrm/internal/models"
 	"github.com/manishkumar/outreachcrm/internal/store"
@@ -18,22 +19,39 @@ type Service struct {
 	mu       sync.Mutex
 }
 
-// Open creates the search service under dataDir/search (engine-specific files inside).
-func Open(dataDir string, st *store.Store, embedder Embedder) (*Service, error) {
+// Open creates the search service. When databaseURL is a postgres:// URL, the
+// index lives in Postgres (pgvector HNSW + FTS + trigram, fused with RRF).
+// Otherwise the engine is Zvec (default build) or SQLite FTS5 (build-lite) under dataDir/search.
+func Open(dataDir string, st *store.Store, embedder Embedder, databaseURL string) (*Service, error) {
 	if embedder == nil {
 		embedder = HashEmbedder{}
 	}
-	root := filepath.Join(dataDir, "search")
-	eng, err := openEngine(root, embedder)
+	var eng Engine
+	var err error
+	if PostgresSearchURL(databaseURL) {
+		eng, err = openPostgresEngine(databaseURL, embedder)
+	} else {
+		root := filepath.Join(dataDir, "search")
+		eng, err = openEngine(root, embedder)
+	}
 	if err != nil {
 		return nil, err
 	}
 	s := &Service{eng: eng, store: st, embedder: embedder}
-	if n, err := s.Reindex(); err != nil {
-		slog.Warn("search reindex", "err", err)
-	} else {
-		slog.Info("search ready", "backend", eng.Backend(), "docs", n, "embedder", embedder.Name())
-	}
+	// Reindex in the background. At production scale this walks every lead and
+	// message and embeds them; doing it inline delayed the HTTP listener by
+	// minutes, so the site served 502s for the whole of every restart. Search
+	// returns partial results until it finishes.
+	go func() {
+		start := time.Now()
+		n, err := s.Reindex()
+		if err != nil {
+			slog.Warn("search reindex", "err", err)
+			return
+		}
+		slog.Info("search ready", "backend", eng.Backend(), "docs", n,
+			"embedder", embedder.Name(), "took", time.Since(start).String())
+	}()
 	return s, nil
 }
 
@@ -150,7 +168,7 @@ func collectDocuments(st *store.Store) []Document {
 		}
 	}
 
-	replies, err := st.ListReplies(true, 0)
+	replies, err := st.ListRepliesScoped(true, 0, 0, 2000)
 	if err == nil {
 		for _, r := range replies {
 			docs = append(docs, DocFromReply(r))
@@ -161,6 +179,21 @@ func collectDocuments(st *store.Store) []Document {
 	if err == nil {
 		campCache := map[int64]models.Campaign{}
 		for _, m := range queue {
+			doc := DocFromQueue(m)
+			if c, ok := campCache[m.CampaignID]; ok {
+				doc.WorkspaceID = c.WorkspaceID
+				doc.OwnerID = c.OwnerID
+			} else if c, err := st.GetCampaign(m.CampaignID); err == nil {
+				campCache[m.CampaignID] = c
+				doc.WorkspaceID = c.WorkspaceID
+				doc.OwnerID = c.OwnerID
+			}
+			docs = append(docs, doc)
+		}
+	}
+	if sent, err := st.ListSentHistory(true, 0, 0, 2000); err == nil {
+		campCache := map[int64]models.Campaign{}
+		for _, m := range sent {
 			doc := DocFromQueue(m)
 			if c, ok := campCache[m.CampaignID]; ok {
 				doc.WorkspaceID = c.WorkspaceID
@@ -276,7 +309,7 @@ func DocFromQueue(m models.OutboundMessage) Document {
 		Title: title, Snippet: Snippet(JoinText(m.ToEmail, m.Status), 160),
 		Content: JoinText(m.ToEmail, m.Subject, m.Body, m.Status, m.Error, m.LastError),
 		Href:    fmt.Sprintf("/queue#queue-%d", m.ID),
-		Email: m.ToEmail, Subject: m.Subject, Notes: m.Body,
+		Email:   m.ToEmail, Subject: m.Subject, Notes: m.Body,
 	}
 }
 

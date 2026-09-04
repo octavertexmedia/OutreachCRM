@@ -29,11 +29,7 @@ func (s *Store) EnsureNamedWorkspace(name string) (int64, error) {
 	if err == nil {
 		return id, nil
 	}
-	res, err := s.db.Exec(`INSERT INTO workspaces(name, created_at) VALUES(?,?)`, name, fmtTime(now()))
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
+	return s.db.InsertID(`INSERT INTO workspaces(name, created_at) VALUES(?,?)`, name, fmtTime(now()))
 }
 
 // EnsureBrandWorkspaces guarantees OctaVertex Media and RevNext tenants exist.

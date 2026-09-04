@@ -166,13 +166,9 @@ func (s *Store) CreateAudience(a models.Audience) (int64, error) {
 	if fj == "" {
 		fj = encodeLeadFilter(a.Filter)
 	}
-	res, err := s.db.Exec(`INSERT INTO audiences(workspace_id, owner_id, name, description, filter_json, member_count, created_at, updated_at)
+	return s.db.InsertID(`INSERT INTO audiences(workspace_id, owner_id, name, description, filter_json, member_count, created_at, updated_at)
 		VALUES(?,?,?,?,?,0,?,?)`,
 		a.WorkspaceID, a.OwnerID, strings.TrimSpace(a.Name), strings.TrimSpace(a.Description), fj, t, t)
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
 }
 
 func (s *Store) UpdateAudience(a models.Audience) error {

@@ -130,7 +130,7 @@ func (s *Store) CreateCallLog(c models.CallLog) (int64, error) {
 		c.Provider = models.ProviderSmartflo
 	}
 	ts := fmtTime(now())
-	res, err := s.db.Exec(`
+	return s.db.InsertID(`
 INSERT INTO call_logs
   (workspace_id, lead_id, user_id, provider, call_id, uuid, ref_id, direction, status,
    agent_number, agent_name, client_number, caller_id, duration, billsec, recording_url,
@@ -140,10 +140,6 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		c.Direction, c.Status, c.AgentNumber, c.AgentName, c.ClientNumber, c.CallerID,
 		c.Duration, c.BillSec, c.RecordingURL, c.HangupCause, c.Notes,
 		nullTimePtr(c.StartedAt), nullTimePtr(c.AnsweredAt), nullTimePtr(c.EndedAt), ts, ts)
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
 }
 
 // UpsertCallEvent merges a webhook event or CDR row onto an existing call.

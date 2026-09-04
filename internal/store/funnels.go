@@ -15,7 +15,7 @@ func (s *Store) RecordAudienceCampaignRun(workspaceID, campaignID, audienceID in
 		workspaceID = 1
 	}
 	t := fmtTime(now())
-	res, err := s.db.Exec(`INSERT INTO campaign_audience_runs(workspace_id, campaign_id, audience_id, enrolled, skipped, status, created_at, updated_at)
+	id, err := s.db.InsertID(`INSERT INTO campaign_audience_runs(workspace_id, campaign_id, audience_id, enrolled, skipped, status, created_at, updated_at)
 		VALUES(?,?,?,?,?,'active',?,?)
 		ON CONFLICT(campaign_id, audience_id) DO UPDATE SET
 			enrolled=campaign_audience_runs.enrolled + excluded.enrolled,
@@ -26,7 +26,7 @@ func (s *Store) RecordAudienceCampaignRun(workspaceID, campaignID, audienceID in
 	if err != nil {
 		return 0, err
 	}
-	id, _ := res.LastInsertId()
+
 	if id == 0 {
 		_ = s.db.QueryRow(`SELECT id FROM campaign_audience_runs WHERE campaign_id=? AND audience_id=?`,
 			campaignID, audienceID).Scan(&id)

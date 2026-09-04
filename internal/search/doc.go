@@ -1,8 +1,10 @@
 // Package search provides global hybrid search over CRM entities.
 //
-// Production builds (-tags zvec, the default make target) use Alibaba Zvec
-// (https://github.com/alibaba/zvec): dense HNSW vectors + native FTS fused
-// with MultiQuery RRF reranking. Lite builds (!zvec) fall back to SQLite FTS5.
+// When DATABASE_URL is a postgres:// URL, the index is Postgres: pgvector HNSW
+// (cosine, 1536-d) + generated tsvector GIN + pg_trgm, fused in Go with RRF.
+// CRM rows stay in SQLite. With DATABASE_URL empty, production builds (-tags zvec)
+// use Alibaba Zvec (https://github.com/alibaba/zvec): dense HNSW + native FTS +
+// MultiQuery RRF. Lite builds (!zvec) fall back to SQLite FTS5.
 package search
 
 import (

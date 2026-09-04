@@ -1,7 +1,6 @@
 package store
 
 import (
-	"database/sql"
 	"fmt"
 	"time"
 )
@@ -158,6 +157,9 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 	{9, `
 -- telephony: Tata Smartflo connection + call logs
 `},
+	{10, `
+-- smartlead import id map
+`},
 }
 
 func (s *Store) migrate() error {
@@ -175,6 +177,10 @@ func (s *Store) migrate() error {
 		if err != nil {
 			return err
 		}
+		// Migration steps intentionally ignore errors from statements that may
+		// already have been applied; savepoints keep those from aborting the
+		// whole transaction on Postgres.
+		tx.soft = true
 		if m.sql != "" && m.version == 1 {
 			if _, err := tx.Exec(m.sql); err != nil {
 				_ = tx.Rollback()
@@ -229,6 +235,12 @@ func (s *Store) migrate() error {
 				return fmt.Errorf("migration %d: %w", m.version, err)
 			}
 		}
+		if m.version == 10 {
+			if err := upgradeSmartleadMap(tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("migration %d: %w", m.version, err)
+			}
+		}
 		if _, err := tx.Exec(`INSERT INTO schema_migrations(version) VALUES(?)`, m.version); err != nil {
 			_ = tx.Rollback()
 			return err
@@ -237,12 +249,14 @@ func (s *Store) migrate() error {
 			return err
 		}
 	}
-	// Ensure WAL
-	_, _ = s.db.Exec(`PRAGMA journal_mode=WAL`)
+	if !s.db.postgres() {
+		// SQLite only: WAL keeps readers unblocked during writes.
+		_, _ = s.db.Exec(`PRAGMA journal_mode=WAL`)
+	}
 	return nil
 }
 
-func upgradeMVPColumns(tx *sql.Tx) error {
+func upgradeMVPColumns(tx *tx) error {
 	alters := []string{
 		`ALTER TABLE leads ADD COLUMN owner_id INTEGER`,
 		`ALTER TABLE campaigns ADD COLUMN owner_id INTEGER`,
@@ -272,7 +286,7 @@ func upgradeMVPColumns(tx *sql.Tx) error {
 	return nil
 }
 
-func upgradeProdV2(tx *sql.Tx) error {
+func upgradeProdV2(tx *tx) error {
 	_, _ = tx.Exec(`
 CREATE TABLE IF NOT EXISTS workspaces (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -364,7 +378,7 @@ CREATE TABLE IF NOT EXISTS app_settings (
 	return nil
 }
 
-func upgradePipeline(tx *sql.Tx) error {
+func upgradePipeline(tx *tx) error {
 	for _, q := range []string{
 		`ALTER TABLE leads ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'`,
 		`ALTER TABLE leads ADD COLUMN company TEXT NOT NULL DEFAULT ''`,
@@ -379,7 +393,7 @@ func upgradePipeline(tx *sql.Tx) error {
 	return nil
 }
 
-func upgradeDeliverability(tx *sql.Tx) error {
+func upgradeDeliverability(tx *tx) error {
 	_, err := tx.Exec(`
 CREATE TABLE IF NOT EXISTS recipient_stats (
   email TEXT PRIMARY KEY,
@@ -441,7 +455,7 @@ CREATE TABLE IF NOT EXISTS blacklist_checks (
 	return nil
 }
 
-func upgradeAudiences(tx *sql.Tx) error {
+func upgradeAudiences(tx *tx) error {
 	_, err := tx.Exec(`
 CREATE TABLE IF NOT EXISTS audiences (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -466,7 +480,7 @@ CREATE INDEX IF NOT EXISTS idx_audience_members_lead ON audience_members(lead_id
 	return err
 }
 
-func upgradeCampaignFunnels(tx *sql.Tx) error {
+func upgradeCampaignFunnels(tx *tx) error {
 	_, err := tx.Exec(`
 CREATE TABLE IF NOT EXISTS campaign_audience_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -492,7 +506,7 @@ CREATE INDEX IF NOT EXISTS idx_car_campaign ON campaign_audience_runs(campaign_i
 	return nil
 }
 
-func upgradeAIAndMarketing(tx *sql.Tx) error {
+func upgradeAIAndMarketing(tx *tx) error {
 	_, err := tx.Exec(`
 CREATE TABLE IF NOT EXISTS workspace_ai (
   workspace_id INTEGER PRIMARY KEY,
@@ -529,7 +543,7 @@ CREATE TABLE IF NOT EXISTS marketing_smtp (
 	return nil
 }
 
-func upgradeTelephony(tx *sql.Tx) error {
+func upgradeTelephony(tx *tx) error {
 	_, err := tx.Exec(`
 CREATE TABLE IF NOT EXISTS telephony_accounts (
   workspace_id INTEGER PRIMARY KEY,
@@ -584,3 +598,15 @@ CREATE INDEX IF NOT EXISTS idx_call_logs_callid ON call_logs(call_id);
 	return err
 }
 
+func upgradeSmartleadMap(tx *tx) error {
+	_, err := tx.Exec(`
+CREATE TABLE IF NOT EXISTS smartlead_map (
+  kind TEXT NOT NULL,
+  remote_id TEXT NOT NULL,
+  local_id INTEGER NOT NULL,
+  PRIMARY KEY (kind, remote_id)
+);
+CREATE INDEX IF NOT EXISTS idx_smartlead_map_local ON smartlead_map(kind, local_id);
+`)
+	return err
+}

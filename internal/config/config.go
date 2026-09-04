@@ -53,6 +53,10 @@ type Config struct {
 	SmartfloCallerID    string
 	SmartfloCallTimeout int
 	SmartfloCDRDays     int
+
+	// DatabaseURL, when postgres:// or postgresql://, opts into pgvector search.
+	// CRM operational data remains SQLite (DataDir) until a full store port.
+	DatabaseURL string
 }
 
 func Load() Config {
@@ -106,6 +110,8 @@ func Load() Config {
 		SmartfloCallerID:    env("SMARTFLO_CALLER_ID", ""),
 		SmartfloCallTimeout: envInt("SMARTFLO_CALL_TIMEOUT", 0),
 		SmartfloCDRDays:     envInt("SMARTFLO_CDR_SYNC_DAYS", 7),
+
+		DatabaseURL: env("DATABASE_URL", ""),
 	}
 }
 

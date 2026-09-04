@@ -51,11 +51,31 @@
       <button hx-post="/leads/{{.Lead.ID}}/enrich" hx-target="#lead-{{.Lead.ID}}" hx-swap="outerHTML">Enrich</button>
       <button class="secondary" hx-post="/leads/{{.Lead.ID}}/generate-email" hx-target="#draft-{{.Lead.ID}}" hx-swap="innerHTML">Draft</button>
       <button class="secondary" hx-post="/leads/{{.Lead.ID}}/validate-email" hx-target="#val-{{.Lead.ID}}" hx-swap="innerHTML">Validate</button>
+      {{if .Lead.Phone}}
+      <button class="secondary" hx-post="/leads/{{.Lead.ID}}/call" hx-target="#call-{{.Lead.ID}}" hx-swap="outerHTML" hx-disabled-elt="this" title="Click to call {{.Lead.Phone}} via Smartflo">Call</button>
+      {{end}}
       <a class="topbar-link" href="/leads" style="border-color:var(--border)">Open list</a>
     </div>
     <div id="val-{{.Lead.ID}}" style="margin-top:0.5rem"></div>
+    <div id="call-{{.Lead.ID}}" style="margin-top:0.5rem"></div>
     <div id="draft-{{.Lead.ID}}" style="margin-top:0.5rem"></div>
   </div>
+
+  {{if .Calls}}
+  <div class="inspector-section">
+    <h3>Calls</h3>
+    <ul class="muted" style="margin:0;padding-left:1.1rem">
+      {{range .Calls}}
+      <li>
+        {{if .StartedAt}}{{.StartedAt.Format "02 Jan 15:04"}}{{else}}{{.CreatedAt.Format "02 Jan 15:04"}}{{end}} ·
+        <span class="badge {{badgeClass .Status}}">{{if .Status}}{{.Status}}{{else}}pending{{end}}</span>
+        {{if gt .BillSec 0}} · {{hms .BillSec}}{{end}}
+        {{if .RecordingURL}} · <a href="{{.RecordingURL}}" target="_blank" rel="noopener">recording</a>{{end}}
+      </li>
+      {{end}}
+    </ul>
+  </div>
+  {{end}}
 
   <div class="inspector-section">
     <h3>Recipient health</h3>
@@ -66,6 +86,21 @@
       <div><dt>Complaints</dt><dd>{{.History.Complaints}}</dd></div>
     </dl>
   </div>
+
+  {{if .Mail}}
+  <div class="inspector-section">
+    <h3>Message history</h3>
+    <ul style="margin:0;padding-left:0;list-style:none">
+      {{range .Mail}}
+      <li style="margin-bottom:0.75rem;padding-bottom:0.65rem;border-bottom:1px solid var(--border)">
+        <div class="muted">{{if eq .Kind "in"}}Reply{{else}}Sent{{end}} · {{if not .At.IsZero}}{{.At.Format "2006-01-02 15:04"}}{{end}} {{if .Status}}· {{.Status}}{{end}}</div>
+        {{if .Subject}}<p style="margin:0.2rem 0 0"><strong>{{.Subject}}</strong></p>{{end}}
+        {{if .Body}}<pre style="margin:0.25rem 0 0;white-space:pre-wrap;font:inherit;color:var(--muted)">{{.Body}}</pre>{{end}}
+      </li>
+      {{end}}
+    </ul>
+  </div>
+  {{end}}
 </div>
 {{end}}
 

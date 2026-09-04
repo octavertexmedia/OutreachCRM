@@ -1,4 +1,5 @@
 # OutReachCRM Handbook
+> The one place that explains how this works. Plain English. Last updated: 2026-09-04
 
 ## 1. What this is
 
@@ -17,11 +18,11 @@ Bootstrap admin from `BOOTSTRAP_ADMIN_*` when users table is empty. Users belong
 
 | Piece | Choice |
 |-------|--------|
-| DB | SQLite WAL + versioned migrations + file backups (`data/backups/`) |
+| DB | SQLite WAL + versioned migrations + file backups (`data/backups/`). **CRM rows stay SQLite.** |
 | Auth | bcrypt + TOTP 2FA + HMAC cookies; API rate limit |
 | Secrets | OpenBao at **https://secrets.revnext.in/** (AppRole → KV); AES-GCM in-app with `ENCRYPTION_KEY` |
 | Email | Mailbox IMAP (OAuth or password) for sync + 1:1; paid ESP SMTP (Brevo/SendGrid/Mailgun/Postmark/SES) for campaign blasts |
-| Search | [Alibaba Zvec](https://github.com/alibaba/zvec) hybrid: HNSW dense + native FTS + MultiQuery RRF (`make build`); lite SQLite FTS5 via `make build-lite` |
+| Search | Default: [Alibaba Zvec](https://github.com/alibaba/zvec) hybrid (HNSW + FTS + RRF). Opt-in pgvector when `DATABASE_URL=postgres://…`. Lite: SQLite FTS5 (`make build-lite`) |
 | Size | `make build-size` ≤ 80 MB (Go binary; ship `libzvec_c_api` alongside) |
 | Prod URL | **https://outreach.vertexcrm.in/** — Contabo VPS with AgencyCRM (`:8003`, `/var/www/outreachcrm`) |
 
@@ -33,6 +34,12 @@ export ENCRYPTION_KEY="$(openssl rand -base64 32)"
 export BOOTSTRAP_ADMIN_EMAIL=you@co.com BOOTSTRAP_ADMIN_PASSWORD='...'
 export SESSION_SECRET='...' PUBLIC_BASE_URL=http://localhost:8080
 ./outreachcrm
+
+# Optional local Postgres search index (does not move CRM data off SQLite):
+#   make postgres-up
+#   export DATABASE_URL='postgres://outreach:outreach@127.0.0.1:5432/outreachcrm?sslmode=disable'
+#   make run
+# Search backend in the UI becomes pgvector-hybrid(…). `make postgres-down` stops the container (volume kept).
 
 # Production: OPENBAO_ENABLED=true + AppRole in /var/www/outreachcrm/.env
 # Secrets loaded from secret/data/vertexcrm/outreach/production before config binds.
@@ -63,13 +70,13 @@ Dashboard shows the live funnel for steps 1–6.
 | IMAP + threading fields + HITL queue + unsubscribe | Yes |
 | SPF/DKIM/DMARC DNS checks + timezone windows | Yes |
 | Crawl signals + confidence + LLM budget | Yes |
-| SQLite backups + PII retention purge | Yes (not full Postgres) |
+| SQLite backups + PII retention purge | Yes — operational CRM is SQLite. Postgres (if `DATABASE_URL` is set) is **search index only** |
 | Message leases for multi-instance | Yes |
 | healthz/readyz/metrics + slog | Yes |
 | GDPR export/delete + consent fields | Yes |
 | CSV import, analytics, templates | Yes |
 | **Email Deliverability Engine** | Yes — `/deliverability` + pre-send gate |
-| **Global search** | Yes — `/search` + topbar; Zvec hybrid (HNSW + FTS + RRF) by default |
+| **Global search** | Yes — `/search` + topbar; Zvec by default, or pgvector hybrid when `DATABASE_URL` is set |
 | **Staff AI + marketing ESP** | Yes — dashboard/inbox copilot; mailbox IMAP vs paid campaign SMTP |
 
 ## 5. Key routes
@@ -83,18 +90,21 @@ Dashboard shows the live funnel for steps 1–6.
 - `/analytics`, `/templates`, `/audit`, `/workspaces`
 - `POST /webhooks/postmark`, `POST /webhooks/ses` — bounce/complaint → suppression
 - `/leads/import` — CSV bulk
+- `go run ./cmd/smartlead-import` — one-shot Smartlead API → SQLite (paused campaigns, no sequencer queue)
 - `POST /api/dashboard/ai/chat`, `POST /api/inbox/ai/chat` — staff AI (tool-calling, confirm-gated writes)
 - `/settings/email` — workspace AI prompts + bulk marketing SMTP
 
 ## 6. Gotchas
 
-- **Global search / Zvec:** Default `make build` / `make run` use [Alibaba Zvec](https://github.com/alibaba/zvec) hybrid retrieval — dense HNSW (`embedding`, 1536-d cosine) + native FTS on `content` fused with MultiQuery RRF. Embeddings use `OPENAI_EMBED_MODEL` (default `text-embedding-3-small`) when `OPENAI_API_KEY` is set; otherwise a local hash embedder keeps hybrid online. Index under `DATA_DIR/search/zvec/`. Size cap is 80 MB for the Go binary; ship `libzvec_c_api` next to it. `make build-lite` is SQLite FTS5-only (no CGO). Admins: `POST /search/reindex`.
-- **Postgres:** intentionally not dual-driver (size/dialect). Production data path is SQLite + WAL + scheduled snapshots. Mirror to object storage via your VPS cron if needed.
+- **Global search:** Default `make build` / `make run` (empty `DATABASE_URL`) use [Alibaba Zvec](https://github.com/alibaba/zvec) — dense HNSW (`embedding`, 1536-d cosine) + native FTS fused with MultiQuery RRF. Index under `DATA_DIR/search/zvec/`. `make build-lite` is SQLite FTS5-only (no CGO). **Opt-in Postgres:** set `DATABASE_URL` to `postgres://` or `postgresql://` (local: `make postgres-up`, compose file `docker-compose.postgres.yml`, image `pgvector/pgvector:pg16`). Search then uses a `search_docs` table: **HNSW cosine** on `vector(1536)`, **GIN** on generated `tsvector` (`plainto_tsquery` + `ts_rank_cd`), **GIN trigram** (`pg_trgm`) on email/name/company; Go **RRF** (k=60) fuses the three lists. Embeddings reuse `OPENAI_EMBED_MODEL` (default `text-embedding-3-small`) when `OPENAI_API_KEY` is set, else the hash embedder. Extensions: `vector`, `pg_trgm`, `unaccent`. Admins: `POST /search/reindex`. Size cap is 80 MB; ship `libzvec_c_api` when using Zvec.
+- **Postgres vs SQLite:** Production CRM (leads, campaigns, queue, users, Smartlead import, etc.) stays **SQLite WAL**. We did not dual-drive the whole store (`?` vs `$n` across every query). Postgres is the optional **search index** only. Do not point production at Postgres expecting a full cutover.
 - **SSO:** TOTP 2FA yes; enterprise SAML/OIDC IdP login not bundled (OAuth is for *mail*, not user login).
 - **KMS / secrets:** production loads `ENCRYPTION_KEY` (and peers) from OpenBao KV via AppRole; app still decrypts locally with AES-GCM (not cloud KMS).
 - Enrichment crawl is lightweight HTTP GET — not PageSpeed API.
 - **Mailbox vs marketing SMTP:** `/accounts` is IMAP sync + HITL replies (OAuth or Titan/Zoho/Hostinger password). Campaign blasts use the workspace **Marketing SMTP** on `/settings/email` when set — personal Gmail/Outlook are not used for blasts in that case.
+- **Smartlead import:** `cmd/smartlead-import` pulls campaigns, sequences, leads, sent stats, replies, and suppressions into a workspace named **Smartlead**. Campaigns stay **paused**; mailboxes `provider=smartlead` and `daily_quota=0` (no SMTP secrets — they cannot send). Historical mail is `sent`/`dead` only — never `EnrollLead` / never `scheduled`. Dashboard **Messages sent** = `outbound_messages.status='sent'` joined to that workspace’s campaigns; **Replies** = `inbound_replies` for the workspace. `/queue` shows due rows plus a **Sent history** table (click to read body); lead inspector shows the thread. Re-run is **resumable**: mapped campaigns/leads still backfill missing stats + replies (idempotent `smartlead_map` + message_id). Stats and leads stream **per API page** (insert then WAL `TRUNCATE`); the importer never holds a full campaign of HTML stats in RAM. Key: `SMARTLEAD_API_KEY` or `--api-key-file`. Prod: backup SQLite, then `docker compose exec app /app/smartlead-import --data-dir /data` (safe to re-run after a drop).
 - **Staff AI:** `OUTREACH_AI_MODE=off|suggest|auto` (default off). Suggest saves inbound drafts; auto never sends free-form mail. Writes from chat require confirm. See `docs/AI-ASSIST.md`.
+- Watch out: if Smartlead import stops after leads, dashboard **Messages sent / Replies stay 0** until you re-run the importer (it backfills `outbound_messages` + `inbound_replies` without re-queueing). Switch the sidebar to workspace **Smartlead** to see those KPIs.
 
 ## 7. Runbook (short)
 
@@ -106,6 +116,11 @@ Dashboard shows the live funnel for steps 1–6.
 
 ## 8. Changelog
 
+- 2026-09-04 — CRM store ports to Postgres: `DATABASE_URL=postgres://…` now backs the **whole CRM**, not just `/search`. Queries stay written in the SQLite flavor and `internal/store/dialect.go` translates them (`?`→`$N`, `INSERT OR IGNORE`→`ON CONFLICT DO NOTHING`, `id INTEGER PRIMARY KEY AUTOINCREMENT`→`BIGSERIAL`, `ADD COLUMN IF NOT EXISTS`); migration transactions run savepoint-protected so an intentionally ignored error cannot abort them. Postgres gets a 25-conn pool instead of SQLite's single writer. Move existing data with `cmd/sqlite-to-postgres` (`--dry-run` first) **before** setting `DATABASE_URL` in production, or the CRM comes up empty. Unset `DATABASE_URL` keeps SQLite.
+- 2026-09-04 — Opt-in Postgres search: `DATABASE_URL=postgres://…` indexes `/search` on pgvector HNSW + FTS GIN + trigram (RRF in Go). CRM data stays SQLite. Local: `make postgres-up` (`docker-compose.postgres.yml`).
+- 2026-09-04 — Smartlead importer streams stats (and lead) pages into SQLite instead of holding a full campaign in memory; WAL TRUNCATE after each page.
+- 2026-09-04 — Smartlead import backfill: resumable stats/replies (even if campaigns already mapped), persist `email_subject`/`email_message` on `outbound_messages`, show sent history on `/queue` + lead inspector, workspace-scoped sent/reply KPIs, WAL-batched writes.
+- 2026-09-04 — Smartlead one-shot import (`cmd/smartlead-import`): campaigns/sequences/leads/stats/replies/accounts/suppressions into workspace **Smartlead**; campaigns stay paused; no mailbox secrets; idempotent `smartlead_map`.
 - 2026-08-18 — Staff AI (dashboard + inbox tool chat), password IMAP presets (Titan/Zoho/Hostinger), workspace marketing SMTP for campaign blasts (personal mailboxes stay for sync + HITL). Env: `OUTREACH_AI_MODE`. Docs: `docs/AI-ASSIST.md`.
 - 2026-07-20 — `/users` (and Admin nav: Users / Workspaces / Audit) is admin-only; sender role is redirected to `/` and never shown the Admin nav section.
 - 2026-07-19 — Campaign funnel tracker: enroll audience → records which campaign funnel it runs; `/funnels` shows queued/sent/replied/positive/step distribution per audience×campaign (octavertex-growth wiring).

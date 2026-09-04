@@ -7,7 +7,7 @@
 <body class="app-body">
   {{template "nav" .}}
 <h1>4 · Sequencing queue</h1>
-<p class="sub">Due and in-flight outbound messages across your campaigns. Click a row for the detail pane.</p>
+<p class="sub">Due mail plus recent sent/dead history for this workspace. Click a row to read the body. Imported Smartlead mail is read-only (not re-queued).</p>
 <div class="panel"><table>
 <thead><tr><th>ID</th><th>To</th><th>Step</th><th>Status</th><th>When</th><th>Attempts</th><th>Error</th></tr></thead>
 <tbody>
@@ -26,9 +26,34 @@
   <td class="muted">{{.LastError}}</td>
 </tr>
 {{else}}
-<tr><td colspan="7" class="muted">Queue empty — enroll leads into an active campaign.</td></tr>
+<tr><td colspan="7" class="muted">No due/failed rows — historical sent mail is listed below.</td></tr>
 {{end}}
 </tbody></table></div>
+
+<div class="panel" style="margin-top:1rem">
+  <h2 class="dash-card-title" style="margin-top:0">Sent history</h2>
+  <p class="muted" style="margin-top:0">Latest 200 sent or bounced messages (including Smartlead import).</p>
+  <table>
+  <thead><tr><th>ID</th><th>To</th><th>Subject</th><th>Step</th><th>Status</th><th>When</th></tr></thead>
+  <tbody>
+  {{range .Sent}}
+  <tr data-inspect
+      hx-get="/panel/queue/{{.ID}}"
+      hx-target="#inspector-body"
+      hx-swap="innerHTML"
+      hx-trigger="click">
+    <td>{{.ID}}</td>
+    <td>{{.ToEmail}}</td>
+    <td>{{if .Subject}}{{.Subject}}{{else}}<span class="muted">—</span>{{end}}</td>
+    <td>{{.StepOrder}}</td>
+    <td><span class="badge {{badgeClass .Status}}">{{.Status}}</span></td>
+    <td class="muted">{{if .SentAt}}{{.SentAt.Format "2006-01-02 15:04"}}{{else}}{{.ScheduledAt.Format "2006-01-02 15:04"}}{{end}}</td>
+  </tr>
+  {{else}}
+  <tr><td colspan="6" class="muted">No sent history in this workspace yet.</td></tr>
+  {{end}}
+  </tbody></table>
+</div>
 {{template "foot" .}}
 </body>
 </html>

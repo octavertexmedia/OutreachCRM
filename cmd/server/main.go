@@ -33,12 +33,13 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))
 	cfg := config.Load()
 
-	st, err := store.Open(cfg.DataDir)
+	st, err := store.OpenAuto(cfg.DataDir, cfg.DatabaseURL)
 	if err != nil {
 		slog.Error("store open", "err", err)
 		os.Exit(1)
 	}
 	defer st.Close()
+	slog.Info("store ready", "backend", st.Backend())
 
 	if err := st.BootstrapAdmin(cfg.BootstrapAdminEmail, cfg.BootstrapAdminPassword); err != nil {
 		slog.Error("bootstrap admin", "err", err)
@@ -72,7 +73,7 @@ func main() {
 	eng := deliverability.New(dc)
 
 	embedder := search.ResolveEmbedder(cfg.OpenAIAPIKey, cfg.OpenAIBaseURL, cfg.OpenAIEmbedModel)
-	searchSvc, err := search.Open(cfg.DataDir, st, embedder)
+	searchSvc, err := search.Open(cfg.DataDir, st, embedder, cfg.DatabaseURL)
 	if err != nil {
 		slog.Error("search open", "err", err)
 		os.Exit(1)

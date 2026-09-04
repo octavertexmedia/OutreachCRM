@@ -6,6 +6,7 @@ require (
 	github.com/emersion/go-imap v1.2.1
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
+	github.com/lib/pq v1.10.9
 	golang.org/x/crypto v0.54.0
 	golang.org/x/oauth2 v0.36.0
 	modernc.org/sqlite v1.36.0

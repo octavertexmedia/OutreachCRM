@@ -34,6 +34,8 @@ Keys are **env var names**. Recommended set:
 | `OAUTH_REDIRECT_BASE` | Same as public URL |
 | `COOKIE_SECURE` | `true` |
 | `DRY_RUN_SMTP` | `false` when ready to send |
+| `SMARTFLO_EMAIL` / `SMARTFLO_PASSWORD` | Tata Smartflo login (workspace default) |
+| `SMARTFLO_TOKEN` | Permanent Smartflo token, if issued — replaces the login pair |
 
 ## One-time AppRole + seed (on VPS)
 

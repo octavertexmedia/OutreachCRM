@@ -62,11 +62,7 @@ func (s *Store) ListWorkspaces() ([]models.Workspace, error) {
 }
 
 func (s *Store) CreateWorkspace(name string) (int64, error) {
-	res, err := s.db.Exec(`INSERT INTO workspaces(name, created_at) VALUES(?,?)`, name, fmtTime(now()))
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
+	return s.db.InsertID(`INSERT INTO workspaces(name, created_at) VALUES(?,?)`, name, fmtTime(now()))
 }
 
 func (s *Store) GetSetting(key, fallback string) string {
@@ -150,12 +146,8 @@ func (s *Store) ListTemplates(workspaceID int64) ([]models.EmailTemplate, error)
 }
 
 func (s *Store) CreateTemplate(t models.EmailTemplate) (int64, error) {
-	res, err := s.db.Exec(`INSERT INTO email_templates(workspace_id, name, subject, body, created_at) VALUES(?,?,?,?,?)`,
+	return s.db.InsertID(`INSERT INTO email_templates(workspace_id, name, subject, body, created_at) VALUES(?,?,?,?,?)`,
 		t.WorkspaceID, t.Name, t.Subject, t.Body, fmtTime(now()))
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
 }
 
 func (s *Store) RecordLLMUsage(workspaceID, userID int64, feature string, tokens, costCents int) error {
@@ -227,6 +219,7 @@ func (s *Store) Analytics(workspaceID int64) (models.Analytics, error) {
 	_ = s.db.QueryRow(`SELECT COUNT(*) FROM outbound_messages om JOIN campaigns c ON c.id=om.campaign_id WHERE om.status='sent' AND c.workspace_id=?`, workspaceID).Scan(&a.Sent)
 	_ = s.db.QueryRow(`SELECT COUNT(*) FROM outbound_messages om JOIN campaigns c ON c.id=om.campaign_id WHERE om.status='failed' AND c.workspace_id=?`, workspaceID).Scan(&a.Failed)
 	_ = s.db.QueryRow(`SELECT COUNT(*) FROM outbound_messages om JOIN campaigns c ON c.id=om.campaign_id WHERE om.status='dead' AND c.workspace_id=?`, workspaceID).Scan(&a.Dead)
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM inbound_replies WHERE workspace_id=? OR workspace_id IS NULL`, workspaceID).Scan(&a.Replies)
 	_ = s.db.QueryRow(`SELECT COUNT(*) FROM inbound_replies WHERE intent='positive' AND (workspace_id=? OR workspace_id IS NULL)`, workspaceID).Scan(&a.Positive)
 	_ = s.db.QueryRow(`SELECT COUNT(*) FROM suppressions WHERE reason='unsubscribe' AND workspace_id=?`, workspaceID).Scan(&a.Unsub)
 	_ = s.db.QueryRow(`SELECT COUNT(*) FROM inbound_replies WHERE hitl_status='needs_review' AND (workspace_id=? OR workspace_id IS NULL)`, workspaceID).Scan(&a.OpenHITL)

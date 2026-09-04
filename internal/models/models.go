@@ -17,6 +17,7 @@ const (
 	ProviderBrevo     = "brevo"
 	ProviderSendGrid  = "sendgrid"
 	ProviderMailgun   = "mailgun"
+	ProviderSmartlead = "smartlead"
 
 	ProviderSmartflo = "smartflo"
 
@@ -359,6 +360,8 @@ type OutboundMessage struct {
 	LockOwner      string
 	Variant        string
 	MessageID      string
+	Opened         bool
+	Replied        bool
 }
 
 type InboundReply struct {
@@ -428,9 +431,20 @@ type Analytics struct {
 	Enriched   int     `json:"enriched"`
 	WithDraft  int     `json:"withDraft"`
 	Enrolled   int     `json:"enrolled"`
+	Replies    int     `json:"replies"` // all inbound_replies in workspace (imported + live)
 	ReplyRate  float64 `json:"replyRate"` // positive / sent * 100
 	UnsubRate  float64 `json:"unsubRate"`
 	Queued     int     `json:"queued"`
+}
+
+// LeadMailItem is one outbound or inbound row on a lead's read-only thread.
+type LeadMailItem struct {
+	Kind      string // "out" or "in"
+	ID        int64
+	Subject   string
+	Body      string
+	Status    string
+	At        time.Time
 }
 
 type PipelineFunnel struct {

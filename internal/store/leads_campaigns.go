@@ -49,16 +49,12 @@ func (s *Store) CreateLead(l models.Lead) (int64, error) {
 	if l.Source == "" {
 		l.Source = "manual"
 	}
-	res, err := s.db.Exec(`INSERT INTO leads(owner_id, workspace_id, name, website, phone, email, google_rating, category, issues_json,
+	return s.db.InsertID(`INSERT INTO leads(owner_id, workspace_id, name, website, phone, email, google_rating, category, issues_json,
 		premium_score, enrichment_status, notes, consent_at, consent_source, source, company, title, draft_subject, draft_body, created_at, updated_at)
 		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		l.OwnerID, l.WorkspaceID, l.Name, l.Website, l.Phone, l.Email, l.GoogleRating, l.Category, nullJSON(l.IssuesJSON),
 		l.PremiumScore, defaultStatus(l.EnrichmentStatus), l.Notes, nilStr(l.ConsentAt), l.ConsentSource,
 		l.Source, l.Company, l.Title, l.DraftSubject, l.DraftBody, t, t)
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
 }
 
 func (s *Store) SaveLeadDraft(id int64, subject, body string) error {
@@ -93,25 +89,34 @@ func (s *Store) ListPendingEnrichIDs(admin bool, ownerID int64, limit int) ([]in
 
 func (s *Store) PipelineFunnel(admin bool, ownerID, workspaceID int64) (models.PipelineFunnel, error) {
 	var f models.PipelineFunnel
-	ow := ""
-	var args []any
+	leadW := ""
+	var leadArgs []any
 	if !admin {
-		ow = " AND owner_id=?"
-		args = append(args, ownerID)
+		leadW = " AND owner_id=?"
+		leadArgs = append(leadArgs, ownerID)
+	} else if workspaceID > 0 {
+		leadW = " AND workspace_id=?"
+		leadArgs = append(leadArgs, workspaceID)
 	}
-	_ = s.db.QueryRow(`SELECT COUNT(*) FROM leads WHERE 1=1`+ow, args...).Scan(&f.Sourced)
-	_ = s.db.QueryRow(`SELECT COUNT(*) FROM leads WHERE enrichment_status='done'`+ow, args...).Scan(&f.Enriched)
-	_ = s.db.QueryRow(`SELECT COUNT(*) FROM leads WHERE draft_subject != ''`+ow, args...).Scan(&f.Drafted)
-	if admin {
-		_ = s.db.QueryRow(`SELECT COUNT(DISTINCT lead_id) FROM campaign_leads`).Scan(&f.Sequenced)
-		_ = s.db.QueryRow(`SELECT COUNT(*) FROM inbound_replies`).Scan(&f.Replied)
-		_ = s.db.QueryRow(`SELECT COUNT(*) FROM inbound_replies WHERE intent='positive'`).Scan(&f.Positive)
-	} else {
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM leads WHERE 1=1`+leadW, leadArgs...).Scan(&f.Sourced)
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM leads WHERE enrichment_status='done'`+leadW, leadArgs...).Scan(&f.Enriched)
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM leads WHERE draft_subject != ''`+leadW, leadArgs...).Scan(&f.Drafted)
+
+	if !admin {
 		_ = s.db.QueryRow(`SELECT COUNT(DISTINCT cl.lead_id) FROM campaign_leads cl JOIN leads l ON l.id=cl.lead_id WHERE l.owner_id=?`, ownerID).Scan(&f.Sequenced)
 		_ = s.db.QueryRow(`SELECT COUNT(*) FROM inbound_replies WHERE owner_id=? OR owner_id IS NULL`, ownerID).Scan(&f.Replied)
 		_ = s.db.QueryRow(`SELECT COUNT(*) FROM inbound_replies WHERE intent='positive' AND (owner_id=? OR owner_id IS NULL)`, ownerID).Scan(&f.Positive)
+		return f, nil
 	}
-	_ = workspaceID
+	if workspaceID > 0 {
+		_ = s.db.QueryRow(`SELECT COUNT(DISTINCT cl.lead_id) FROM campaign_leads cl JOIN campaigns c ON c.id=cl.campaign_id WHERE c.workspace_id=?`, workspaceID).Scan(&f.Sequenced)
+		_ = s.db.QueryRow(`SELECT COUNT(*) FROM inbound_replies WHERE workspace_id=? OR workspace_id IS NULL`, workspaceID).Scan(&f.Replied)
+		_ = s.db.QueryRow(`SELECT COUNT(*) FROM inbound_replies WHERE intent='positive' AND (workspace_id=? OR workspace_id IS NULL)`, workspaceID).Scan(&f.Positive)
+		return f, nil
+	}
+	_ = s.db.QueryRow(`SELECT COUNT(DISTINCT lead_id) FROM campaign_leads`).Scan(&f.Sequenced)
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM inbound_replies`).Scan(&f.Replied)
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM inbound_replies WHERE intent='positive'`).Scan(&f.Positive)
 	return f, nil
 }
 
@@ -239,12 +244,8 @@ func (s *Store) CreateCampaign(c models.Campaign) (int64, error) {
 	if c.ABEnabled {
 		ab = 1
 	}
-	res, err := s.db.Exec(`INSERT INTO campaigns(owner_id, workspace_id, name, status, daily_send_limit, timezone, send_window_start, send_window_end, ab_enabled, created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+	return s.db.InsertID(`INSERT INTO campaigns(owner_id, workspace_id, name, status, daily_send_limit, timezone, send_window_start, send_window_end, ab_enabled, created_at) VALUES(?,?,?,?,?,?,?,?,?,?)`,
 		c.OwnerID, c.WorkspaceID, c.Name, status, c.DailySendLimit, c.Timezone, c.SendWindowStart, c.SendWindowEnd, ab, fmtTime(now()))
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
 }
 
 func (s *Store) SetCampaignStatus(id int64, status string) error {
@@ -272,12 +273,8 @@ func (s *Store) ListSteps(campaignID int64) ([]models.SequenceStep, error) {
 }
 
 func (s *Store) AddStep(st models.SequenceStep) (int64, error) {
-	res, err := s.db.Exec(`INSERT INTO sequence_steps(campaign_id, step_order, delay_days, subject_template, body_spintax, variant_b_subject, variant_b_body)
+	return s.db.InsertID(`INSERT INTO sequence_steps(campaign_id, step_order, delay_days, subject_template, body_spintax, variant_b_subject, variant_b_body)
 		VALUES(?,?,?,?,?,?,?)`, st.CampaignID, st.StepOrder, st.DelayDays, st.SubjectTemplate, st.BodySpintax, st.VariantBSubject, st.VariantBBody)
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
 }
 
 func (s *Store) NextStepOrder(campaignID int64) (int, error) {
@@ -316,17 +313,13 @@ func (s *Store) EnrollLeadFromAudience(campaignID, leadID, audienceID int64) err
 		return fmt.Errorf("campaign has no sequence steps")
 	}
 	t := now()
-	res, err := s.db.Exec(`INSERT INTO campaign_leads(campaign_id, lead_id, current_step, status, enrolled_at, next_send_at, audience_id)
+	clID, err := s.db.InsertID(`INSERT INTO campaign_leads(campaign_id, lead_id, current_step, status, enrolled_at, next_send_at, audience_id)
 		VALUES(?,?,0,'active',?,?,?)
 		ON CONFLICT(campaign_id, lead_id) DO UPDATE SET
 			status='active',
 			next_send_at=excluded.next_send_at,
 			audience_id=CASE WHEN excluded.audience_id>0 THEN excluded.audience_id ELSE campaign_leads.audience_id END`,
 		campaignID, leadID, fmtTime(t), fmtTime(t), audienceID)
-	if err != nil {
-		return err
-	}
-	clID, err := res.LastInsertId()
 	if err != nil {
 		return err
 	}

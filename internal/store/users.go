@@ -50,12 +50,8 @@ func (s *Store) CreateUserInWorkspace(email, password, role string, workspaceID 
 	if err != nil {
 		return 0, err
 	}
-	res, err := s.db.Exec(`INSERT INTO users(email, password_hash, role, active, created_at, workspace_id) VALUES(?,?,?,?,?,?)`,
+	return s.db.InsertID(`INSERT INTO users(email, password_hash, role, active, created_at, workspace_id) VALUES(?,?,?,?,?,?)`,
 		email, string(hash), role, 1, fmtTime(now()), workspaceID)
-	if err != nil {
-		return 0, err
-	}
-	return res.LastInsertId()
 }
 
 func scanUser(row scannable) (models.User, error) {

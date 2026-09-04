@@ -21,6 +21,8 @@ ARG ZVEC_VERSION=v0.5.1
 RUN ZVEC_VERSION=${ZVEC_VERSION} ./scripts/setup-zvec.sh \
  && printf 'go 1.25.0\n\nuse (\n\t.\n\t./third_party/zvec-go\n)\n' > go.work \
  && go build -tags zvec -trimpath -ldflags="-s -w -X main.version=${APP_VERSION}" -o /outreachcrm ./cmd/server \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /smartlead-import ./cmd/smartlead-import \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /sqlite-to-postgres ./cmd/sqlite-to-postgres \
  && mkdir -p /zvec-lib \
  && cp -a third_party/zvec-go/lib/linux_amd64/. /zvec-lib/
 
@@ -37,8 +39,10 @@ RUN useradd --create-home --uid 10001 appuser \
   && chown appuser:appuser /data
 
 COPY --from=builder /outreachcrm /app/outreachcrm
+COPY --from=builder /smartlead-import /app/smartlead-import
+COPY --from=builder /sqlite-to-postgres /app/sqlite-to-postgres
 COPY --from=builder /zvec-lib/ /app/lib/
-RUN chown appuser:appuser /app/outreachcrm \
+RUN chown appuser:appuser /app/outreachcrm /app/smartlead-import /app/sqlite-to-postgres \
   && chmod 755 /app/lib/*
 
 COPY docker-entrypoint.sh /docker-entrypoint.sh

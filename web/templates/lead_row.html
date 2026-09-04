@@ -32,10 +32,21 @@
         hx-swap="innerHTML">
         Draft
       </button>
+      {{if .Phone}}
+      <button class="secondary"
+        hx-post="/leads/{{.ID}}/call"
+        hx-target="#call-{{.ID}}"
+        hx-swap="outerHTML"
+        hx-disabled-elt="this"
+        title="Click to call {{.Phone}} via Smartflo">
+        Call
+      </button>
+      {{end}}
       <form method="post" action="/privacy/delete/{{.ID}}" style="margin:0" onsubmit="return confirm('Erase this lead’s PII?')">
         <button class="secondary" type="submit">Erase</button>
       </form>
     </div>
+    <div id="call-{{.ID}}"></div>
     <div id="draft-{{.ID}}"></div>
   </td>
 </tr>
