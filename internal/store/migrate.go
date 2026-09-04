@@ -160,6 +160,9 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 	{10, `
 -- smartlead import id map
 `},
+	{11, `
+-- prospect memory: durable identity, address history, employment, events
+`},
 }
 
 func (s *Store) migrate() error {
@@ -237,6 +240,12 @@ func (s *Store) migrate() error {
 		}
 		if m.version == 10 {
 			if err := upgradeSmartleadMap(tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("migration %d: %w", m.version, err)
+			}
+		}
+		if m.version == 11 {
+			if err := upgradeProspectMemory(tx); err != nil {
 				_ = tx.Rollback()
 				return fmt.Errorf("migration %d: %w", m.version, err)
 			}
@@ -609,4 +618,148 @@ CREATE TABLE IF NOT EXISTS smartlead_map (
 CREATE INDEX IF NOT EXISTS idx_smartlead_map_local ON smartlead_map(kind, local_id);
 `)
 	return err
+}
+
+// upgradeProspectMemory adds the prospect-memory layer: a durable person
+// identity separated from the email addresses that reach them.
+//
+// It is deliberately additive. `leads` keeps working and `person.lead_id` links
+// the two, so reads can be repointed one at a time instead of in a big-bang
+// cutover on live outreach data. Identity resolution then merges people down
+// over time via person.merged_into_id, which is reversible.
+//
+// Times are RFC3339 TEXT to match the rest of this package (see fmtTime), which
+// sorts and compares identically on SQLite and Postgres.
+func upgradeProspectMemory(tx *tx) error {
+	_, err := tx.Exec(`
+CREATE TABLE IF NOT EXISTS person (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL DEFAULT 1,
+  lead_id INTEGER,
+  display_name TEXT NOT NULL DEFAULT '',
+  primary_email TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  linkedin_url TEXT NOT NULL DEFAULT '',
+  merged_into_id INTEGER,
+  first_seen_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_person_ws ON person(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_person_lead ON person(lead_id);
+CREATE INDEX IF NOT EXISTS idx_person_merged ON person(merged_into_id);
+
+-- Uniqueness lives here, not on person: several addresses may reach one human.
+CREATE TABLE IF NOT EXISTS person_email (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  person_id INTEGER NOT NULL,
+  workspace_id INTEGER NOT NULL DEFAULT 1,
+  email TEXT NOT NULL,
+  email_domain TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active',
+  bounce_count INTEGER NOT NULL DEFAULT 0,
+  first_seen_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_person_email_uniq ON person_email(workspace_id, email);
+CREATE INDEX IF NOT EXISTS idx_person_email_person ON person_email(person_id);
+CREATE INDEX IF NOT EXISTS idx_person_email_domain ON person_email(email_domain);
+
+-- Employment as rows with validity windows, so a promotion stays visible
+-- instead of overwriting the role it replaced.
+CREATE TABLE IF NOT EXISTS person_employment (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  person_id INTEGER NOT NULL,
+  company TEXT NOT NULL DEFAULT '',
+  domain TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL DEFAULT '',
+  valid_from TEXT,
+  valid_to TEXT,
+  source TEXT NOT NULL DEFAULT 'smartlead',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_person_employment_person ON person_employment(person_id, valid_to);
+
+-- Append-only. Scores derive from this, so a scoring change is a recompute
+-- rather than a migration. dedupe_key makes every import re-runnable.
+CREATE TABLE IF NOT EXISTS prospect_event (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  person_id INTEGER NOT NULL,
+  workspace_id INTEGER NOT NULL DEFAULT 1,
+  campaign_id INTEGER,
+  kind TEXT NOT NULL,
+  occurred_at TEXT NOT NULL,
+  payload TEXT NOT NULL DEFAULT '{}',
+  source TEXT NOT NULL DEFAULT 'smartlead_import',
+  dedupe_key TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_prospect_event_dedupe ON prospect_event(dedupe_key);
+CREATE INDEX IF NOT EXISTS idx_prospect_event_person ON prospect_event(person_id, occurred_at);
+CREATE INDEX IF NOT EXISTS idx_prospect_event_kind ON prospect_event(kind, occurred_at);
+
+-- Materialised scoring snapshot. Never the source of truth; components are
+-- stored alongside the total so a recommendation can explain itself.
+CREATE TABLE IF NOT EXISTS person_signal (
+  person_id INTEGER PRIMARY KEY,
+  workspace_id INTEGER NOT NULL DEFAULT 1,
+  intent_max INTEGER NOT NULL DEFAULT 0,
+  intent_reason TEXT NOT NULL DEFAULT '',
+  decay REAL NOT NULL DEFAULT 1,
+  triggers REAL NOT NULL DEFAULT 1,
+  priority REAL NOT NULL DEFAULT 0,
+  reason TEXT NOT NULL DEFAULT '',
+  suggested_action TEXT NOT NULL DEFAULT '',
+  suppressed INTEGER NOT NULL DEFAULT 0,
+  engagement_tracked INTEGER NOT NULL DEFAULT 0,
+  last_contacted_at TEXT,
+  last_reply_at TEXT,
+  revisit_at TEXT,
+  computed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_person_signal_priority ON person_signal(workspace_id, suppressed, priority);
+
+-- Review queue for merges that are probable but not certain (score 50-99).
+CREATE TABLE IF NOT EXISTS identity_candidate (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  workspace_id INTEGER NOT NULL DEFAULT 1,
+  person_id INTEGER NOT NULL,
+  other_person_id INTEGER NOT NULL,
+  score INTEGER NOT NULL DEFAULT 0,
+  signals TEXT NOT NULL DEFAULT '[]',
+  state TEXT NOT NULL DEFAULT 'pending',
+  decided_by INTEGER,
+  decided_at TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_identity_candidate_pair ON identity_candidate(person_id, other_person_id);
+CREATE INDEX IF NOT EXISTS idx_identity_candidate_state ON identity_candidate(workspace_id, state, score);
+
+-- Per-campaign tracking settings, so scoring can tell "not engaged" apart from
+-- "engagement was never recorded". Smartlead disables open/click tracking per
+-- campaign, and absence of a signal is not absence of interest.
+CREATE TABLE IF NOT EXISTS campaign_tracking (
+  campaign_id INTEGER PRIMARY KEY,
+  track_opens INTEGER NOT NULL DEFAULT 1,
+  track_clicks INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL
+);
+`)
+	if err != nil {
+		return err
+	}
+	// Connect existing history to the identity layer.
+	for _, q := range []string{
+		`ALTER TABLE outbound_messages ADD COLUMN person_id INTEGER`,
+		`ALTER TABLE inbound_replies ADD COLUMN person_id INTEGER`,
+		`ALTER TABLE inbound_replies ADD COLUMN category_raw TEXT DEFAULT ''`,
+		`ALTER TABLE inbound_replies ADD COLUMN classifier_version INTEGER DEFAULT 0`,
+		`ALTER TABLE inbound_replies ADD COLUMN auto_reply INTEGER DEFAULT 0`,
+	} {
+		_, _ = tx.Exec(q)
+	}
+	_, _ = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_outbound_person ON outbound_messages(person_id)`)
+	_, _ = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_replies_person ON inbound_replies(person_id)`)
+	return nil
 }
