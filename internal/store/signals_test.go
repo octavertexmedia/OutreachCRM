@@ -322,3 +322,42 @@ func TestPromptSentAtDrivesLatencyDetection(t *testing.T) {
 		t.Errorf("intent_points = %d, want 0 despite Smartlead calling it Interested", points)
 	}
 }
+
+// Re-importing is the normal path, so a reply already on file must still
+// receive its statistics metadata — otherwise the rows a re-import exists to
+// enrich are exactly the ones it skips.
+func TestFindReplyIDByMessageIDEnablesReimport(t *testing.T) {
+	st := newTestStore(t)
+	seedProspect(t, st, "Ada Lovelace", "ada@ex.com", 20, "", "Can we meet next week?")
+
+	if _, err := st.db.Exec(`UPDATE inbound_replies SET message_id = ?`, "sl-in-1-2-x"); err != nil {
+		t.Fatal(err)
+	}
+	id, ok := st.FindReplyIDByMessageID("sl-in-1-2-x")
+	if !ok || id == 0 {
+		t.Fatal("an existing reply must be resolvable by message_id")
+	}
+	if _, missing := st.FindReplyIDByMessageID("nope"); missing {
+		t.Error("an unknown message_id must not resolve")
+	}
+	if _, blank := st.FindReplyIDByMessageID(""); blank {
+		t.Error("an empty message_id must not resolve")
+	}
+
+	sent := time.Now().UTC().Add(-21 * 30 * 24 * time.Hour)
+	if err := st.SetReplyImportMeta(id, "Meeting Request", fmtTime(sent), false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ClassifyReplies(1, 0); err != nil {
+		t.Fatal(err)
+	}
+	var cat string
+	var points int
+	if err := st.db.QueryRow(`SELECT category, intent_points FROM inbound_replies WHERE id = ?`, id).
+		Scan(&cat, &points); err != nil {
+		t.Fatal(err)
+	}
+	if cat != string(classify.Interested) || points != 55 {
+		t.Errorf("category/points = %s/%d, want interested/55 after re-import", cat, points)
+	}
+}

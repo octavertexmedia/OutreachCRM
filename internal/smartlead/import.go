@@ -357,10 +357,22 @@ func Run(st *store.Store, c *Client, opt Options) (Stats, error) {
 						CreatedAt: at,
 					})
 					if err != nil {
-						if strings.Contains(err.Error(), "duplicate") {
+						if !strings.Contains(err.Error(), "duplicate") {
+							out.err("reply " + email + ": " + err.Error())
 							continue
 						}
-						out.err("reply " + email + ": " + err.Error())
+						// Already stored from an earlier run. Re-attach the
+						// statistics metadata anyway: that is the whole point
+						// of re-importing, and skipping it would leave every
+						// existing reply uncategorised forever.
+						existing, ok := st.FindReplyIDByMessageID(mid)
+						if !ok {
+							continue
+						}
+						if err := st.SetReplyImportMeta(existing, meta.category, meta.sentAt, meta.ignoreReply); err != nil {
+							out.err("reply meta " + email + ": " + err.Error())
+						}
+						out.SkippedDupes++
 						continue
 					}
 					// Attach what the statistics row knew: Smartlead's own

@@ -301,3 +301,20 @@ LIMIT ?`, minPriority, workspaceID, workspaceID, limit)
 	}
 	return out, rows.Err()
 }
+
+// FindReplyIDByMessageID resolves an already-stored reply. Re-importing is the
+// normal case, not an exception: CreateReply rejects a message_id it already
+// holds, and without this the import would skip straight past every reply it
+// had seen before — leaving exactly the rows a re-import exists to enrich
+// without their category or prompting send time.
+func (s *Store) FindReplyIDByMessageID(messageID string) (int64, bool) {
+	if messageID == "" {
+		return 0, false
+	}
+	var id int64
+	if err := s.db.QueryRow(
+		`SELECT id FROM inbound_replies WHERE message_id = ? LIMIT 1`, messageID).Scan(&id); err != nil {
+		return 0, false
+	}
+	return id, id > 0
+}
