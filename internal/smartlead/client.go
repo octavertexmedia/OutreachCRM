@@ -1,7 +1,19 @@
+// Package smartlead reads data out of Smartlead. It never writes to it.
+//
+// The integration is deliberately one-way: OutReachCRM pulls campaigns, leads,
+// statistics and threads, and Smartlead remains the system of record for its
+// own state. Nothing here may create, update, pause, unsubscribe, block, reply
+// or register a webhook, even though the API offers all of those.
+//
+// The rule is enforced rather than merely documented: every request passes
+// through send, which refuses any method other than GET. A write added by
+// accident fails loudly at the call site instead of silently changing a live
+// outreach account.
 package smartlead
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -135,7 +147,7 @@ func (c *Client) get(path string, q url.Values) ([]byte, error) {
 		}
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("User-Agent", "OutReachCRM-smartlead-import/1.0")
-		resp, err := c.HTTP.Do(req)
+		resp, err := c.send(req)
 		if err != nil {
 			lastErr = err
 			time.Sleep(backoff(attempt))
@@ -176,6 +188,19 @@ func retryAfter(v string) time.Duration {
 		secs = 120
 	}
 	return time.Duration(secs) * time.Second
+}
+
+// ErrWriteAttempted is returned when something tries to send a non-GET request
+// to Smartlead. The integration is read-only by design; see the package doc.
+var ErrWriteAttempted = errors.New("smartlead: integration is read-only, refusing non-GET request")
+
+// send is the single point through which every Smartlead request passes. It
+// enforces the one-way contract: reads only, no matter what a caller intends.
+func (c *Client) send(req *http.Request) (*http.Response, error) {
+	if req.Method != http.MethodGet && req.Method != http.MethodHead {
+		return nil, fmt.Errorf("%w (%s %s)", ErrWriteAttempted, req.Method, req.URL.Path)
+	}
+	return c.HTTP.Do(req)
 }
 
 func backoff(attempt int) time.Duration {

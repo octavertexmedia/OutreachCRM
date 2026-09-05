@@ -9,5 +9,6 @@ Production-lean Go + HTMX outreach CRM: workspaces, TOTP, OAuth/ESP, IMAP+HITL, 
 - `DATABASE_URL=postgres://...` moves **both** the CRM store and `/search` to Postgres (pgvector HNSW + FTS GIN + trigram). Unset keeps SQLite + Zvec/SQLite FTS.
 - Store queries are written in the SQLite flavor only; `internal/store/dialect.go` translates them for Postgres. Do not hand-write `$N` placeholders in `internal/store`.
 - Migrating an existing deploy: run `cmd/sqlite-to-postgres` before setting `DATABASE_URL`, else the CRM starts empty.
+- Smartlead is **read-only**. Pull campaigns/leads/stats/threads; never create, update, pause, unsubscribe, block, reply, or register a webhook. `internal/smartlead` enforces this — every request goes through `send`, which refuses non-GET, and a test fails on any write verb in the package. A write is a product decision, not a refactor.
 - Update `HANDBOOK.md` changelog after behavior changes.
 - Secrets via env / secret manager → `ENCRYPTION_KEY`; never commit `.env` or DB files.
