@@ -26,13 +26,21 @@ import (
 
 const DefaultBaseURL = "https://server.smartlead.ai/api/v1"
 
-// Verified against the live API on 2026-09-05: limit=1000 returns 1000 rows,
-// limit=2000 returns an empty array with HTTP 200. Never raise these above
-// maxPageSize — an over-large limit looks exactly like end-of-data.
+// Page-size caps differ per endpoint and are not documented. Verified against
+// the live API on 2026-09-05:
+//
+//	/campaigns/{id}/statistics — limit=1000 returns 1000 rows; 2000 returns none
+//	/campaigns/{id}/leads      — limit=100 returns 100 rows; 200 returns none
+//
+// Above the cap the server answers HTTP 200 with an empty array, which is
+// indistinguishable from end-of-data. Raising the leads page size to 1000 once
+// made this import silently fetch no leads at all, so never raise either value
+// without checking the endpoint first.
 const (
-	defaultLeadsPageSize = 1000
+	defaultLeadsPageSize = 100
 	defaultStatsPageSize = 1000
-	maxPageSize          = 1000
+	maxLeadsPageSize     = 100
+	maxStatsPageSize     = 1000
 )
 
 // DefaultRatePerMin sits just under Smartlead's documented 60 requests per 60
@@ -318,24 +326,24 @@ type PageMeta struct {
 
 func (c *Client) leadsLimit() int {
 	if c != nil && c.LeadsPageSize > 0 {
-		return clampPageSize(c.LeadsPageSize)
+		return clampPageSize(c.LeadsPageSize, maxLeadsPageSize)
 	}
 	return defaultLeadsPageSize
 }
 
 func (c *Client) statsLimit() int {
 	if c != nil && c.StatsPageSize > 0 {
-		return clampPageSize(c.StatsPageSize)
+		return clampPageSize(c.StatsPageSize, maxStatsPageSize)
 	}
 	return defaultStatsPageSize
 }
 
-// clampPageSize keeps a caller from asking for more than the API will serve.
-// Above the cap it returns an empty page with HTTP 200, which is
-// indistinguishable from end-of-data and would silently truncate an import.
-func clampPageSize(n int) int {
-	if n > maxPageSize {
-		return maxPageSize
+// clampPageSize keeps a caller from asking for more than an endpoint will
+// serve. Above its cap the server returns an empty page with HTTP 200, which
+// reads as end-of-data and silently truncates the import.
+func clampPageSize(n, max int) int {
+	if n > max {
+		return max
 	}
 	return n
 }
@@ -499,6 +507,13 @@ func (c *Client) EachCampaignLeads(campaignID int64, status string, fn func(page
 		total := intFromWrapper(raw, "total_leads", "total")
 		items := extractObjects(raw, "data", "leads", "list", "results")
 		if len(items) == 0 {
+			// The leads endpoint caps at 100 per page and answers an
+			// over-large limit with HTTP 200 and an empty array. Treating
+			// that as end-of-data once made this import silently fetch no
+			// leads at all, which in turn meant no reply threads.
+			if offset == 0 && total > 0 {
+				return fmt.Errorf("smartlead leads campaign %d: empty first page but total=%d (limit %d may exceed the server maximum of %d)", campaignID, total, limit, maxLeadsPageSize)
+			}
 			break
 		}
 		fp := leadPageFingerprint(items)
@@ -588,7 +603,7 @@ func (c *Client) EachStatistics(campaignID int64, fn func(page []StatRow, meta P
 			// an over-large limit does exactly this. Treating it as
 			// end-of-data would silently import nothing.
 			if offset == 0 && total > 0 {
-				return fmt.Errorf("smartlead statistics campaign %d: empty first page but total_stats=%d (limit %d may exceed the server maximum of %d)", campaignID, total, limit, maxPageSize)
+				return fmt.Errorf("smartlead statistics campaign %d: empty first page but total_stats=%d (limit %d may exceed the server maximum of %d)", campaignID, total, limit, maxStatsPageSize)
 			}
 			break
 		}

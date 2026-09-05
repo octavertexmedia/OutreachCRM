@@ -118,8 +118,37 @@ func TestPageSizeIsClamped(t *testing.T) {
 	if _, err := c.ListStatistics(11); err != nil {
 		t.Fatal(err)
 	}
-	if sawLimit != fmt.Sprint(maxPageSize) {
-		t.Errorf("requested limit=%s, want it clamped to %d", sawLimit, maxPageSize)
+	if sawLimit != fmt.Sprint(maxStatsPageSize) {
+		t.Errorf("requested limit=%s, want it clamped to %d", sawLimit, maxStatsPageSize)
+	}
+}
+
+// The leads endpoint caps at 100, not 1000. Raising it silently fetched zero
+// leads in production, which meant no reply threads were fetched either.
+func TestLeadsPageSizeIsClampedLower(t *testing.T) {
+	var sawLimit string
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if sawLimit == "" {
+			sawLimit = r.URL.Query().Get("limit")
+		}
+		w.Write([]byte(`{"total_leads":0,"data":[]}`))
+	})
+	c.LeadsPageSize = 1000
+	if _, err := c.ListCampaignLeads(11, ""); err != nil {
+		t.Fatal(err)
+	}
+	if sawLimit != fmt.Sprint(maxLeadsPageSize) {
+		t.Errorf("requested leads limit=%s, want it clamped to %d", sawLimit, maxLeadsPageSize)
+	}
+}
+
+// And the same empty-first-page guard must protect leads, not just statistics.
+func TestEmptyFirstLeadsPageIsAnError(t *testing.T) {
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"total_leads":19555,"data":[]}`))
+	})
+	if _, err := c.ListCampaignLeads(11, ""); err == nil {
+		t.Fatal("an empty first leads page with a non-zero total must not read as end-of-data")
 	}
 }
 
