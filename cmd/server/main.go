@@ -22,6 +22,7 @@ import (
 	"github.com/manishkumar/outreachcrm/internal/llm"
 	"github.com/manishkumar/outreachcrm/internal/mail"
 	"github.com/manishkumar/outreachcrm/internal/oauth"
+	"github.com/manishkumar/outreachcrm/internal/prospects"
 	"github.com/manishkumar/outreachcrm/internal/search"
 	"github.com/manishkumar/outreachcrm/internal/sequencing"
 	"github.com/manishkumar/outreachcrm/internal/store"
@@ -101,6 +102,16 @@ func main() {
 		Writing: writeSvc, AIMode: cfg.AIMode, Interval: cfg.IMAPInterval,
 	}
 	go imapWorker.Run(ctx)
+
+	// Keeps the prospect-memory layer current: classify any replies behind the
+	// current classifier, then recompute priorities. Webhooks give freshness;
+	// this gives correctness when one is missed.
+	prospectWorker := &prospects.Worker{
+		Store:         st,
+		Interval:      cfg.ProspectSweepInterval,
+		ClassifyBatch: 2000,
+	}
+	go prospectWorker.Run(ctx)
 
 	go backup.RunPeriodically(ctx.Done(), cfg.DataDir, cfg.BackupInterval)
 	go func() {

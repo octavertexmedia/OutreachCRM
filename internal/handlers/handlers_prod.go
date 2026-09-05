@@ -51,6 +51,7 @@ func (s *Server) registerProdRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("POST /webhooks/postmark", s.webhookPostmark)
 	mux.HandleFunc("POST /webhooks/ses", s.webhookSES)
+	mux.HandleFunc("POST /webhooks/smartlead/{secret}", s.webhookSmartlead)
 }
 
 func (s *Server) totpGet(w http.ResponseWriter, r *http.Request) {
@@ -149,12 +150,12 @@ func (s *Server) workspacesGet(w http.ResponseWriter, r *http.Request) {
 	list, _ := s.Store.ListWorkspaces()
 	type wsView struct {
 		models.Workspace
-		Leads      int
-		Campaigns  int
-		Users      int
-		Templates  int
-		Audiences  int
-		Active     bool
+		Leads     int
+		Campaigns int
+		Users     int
+		Templates int
+		Audiences int
+		Active    bool
 	}
 	var views []wsView
 	for _, ws := range list {
@@ -336,12 +337,12 @@ func (s *Server) leadsImport(w http.ResponseWriter, r *http.Request) {
 		_, createErr := s.Store.CreateLead(models.Lead{
 			OwnerID: u.ID, WorkspaceID: u.WorkspaceID,
 			Name: name, Email: email,
-			Company: strings.TrimSpace(row["company"]),
-			Title:   strings.TrimSpace(row["title"]),
-			Website: strings.TrimSpace(row["website"]),
-			Phone:   strings.TrimSpace(row["phone"]),
-			Source:  source,
-			Notes:   strings.TrimSpace(row["notes"]),
+			Company:          strings.TrimSpace(row["company"]),
+			Title:            strings.TrimSpace(row["title"]),
+			Website:          strings.TrimSpace(row["website"]),
+			Phone:            strings.TrimSpace(row["phone"]),
+			Source:           source,
+			Notes:            strings.TrimSpace(row["notes"]),
 			EnrichmentStatus: "pending",
 		})
 		if createErr == nil {
@@ -493,4 +494,3 @@ func (s *Server) hitlSuggest(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, `<div class="panel"><strong>Suggested reply</strong><pre style="white-space:pre-wrap;font:inherit">%s</pre></div>`,
 		template.HTMLEscapeString(text))
 }
-

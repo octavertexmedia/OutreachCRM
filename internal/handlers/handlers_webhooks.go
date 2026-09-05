@@ -3,8 +3,11 @@ package handlers
 import (
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/manishkumar/outreachcrm/internal/store"
 )
 
 func (s *Server) applyESPEvent(email, reason, event string) {
@@ -93,4 +96,47 @@ func (s *Server) webhookSES(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("ok"))
+}
+
+// webhookSmartlead receives Smartlead events. This is inbound only: the
+// subscription itself is created by hand in Smartlead's UI, because registering
+// one is a POST and the integration is read-only.
+//
+// The path carries a shared secret so an unauthenticated caller cannot inject
+// events. Delivery is acknowledged with 200 even when the event is ignored —
+// Smartlead retries on failure, and retrying an event about someone we have not
+// imported would never succeed.
+func (s *Server) webhookSmartlead(w http.ResponseWriter, r *http.Request) {
+	secret := s.Store.GetSetting("smartlead_webhook_secret", "")
+	if secret == "" || r.PathValue("secret") != secret {
+		http.NotFound(w, r)
+		return
+	}
+
+	raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		http.Error(w, "read failed", http.StatusBadRequest)
+		return
+	}
+	ev, err := store.ParseSmartleadWebhook(raw)
+	if err != nil {
+		// Malformed bodies are not worth retrying.
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ignored"}`))
+		return
+	}
+
+	ws := s.Store.WorkspaceIDForEmail(ev.Email)
+	applied, err := s.Store.IngestSmartleadEvent(ws, ev)
+	if err != nil {
+		slog.Warn("smartlead webhook", "type", ev.Type, "err", err)
+		http.Error(w, "ingest failed", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	if applied {
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+		return
+	}
+	_, _ = w.Write([]byte(`{"status":"ignored"}`))
 }

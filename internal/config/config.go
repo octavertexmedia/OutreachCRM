@@ -38,6 +38,7 @@ type Config struct {
 	TLSCertFile            string
 	TLSKeyFile             string
 	BackupInterval         time.Duration
+	ProspectSweepInterval  time.Duration
 	PIIRetentionDays       int
 	SMTPVerify             bool
 	BlacklistCheck         bool
@@ -95,6 +96,7 @@ func Load() Config {
 		TLSCertFile:            env("TLS_CERT_FILE", ""),
 		TLSKeyFile:             env("TLS_KEY_FILE", ""),
 		BackupInterval:         envDuration("BACKUP_INTERVAL", 24*time.Hour),
+		ProspectSweepInterval:  envDuration("PROSPECT_SWEEP_INTERVAL", 6*time.Hour),
 		PIIRetentionDays:       envInt("PII_RETENTION_DAYS", 365),
 		SMTPVerify:             envBool("DELIVERABILITY_SMTP_VERIFY", false),
 		BlacklistCheck:         envBool("DELIVERABILITY_BLACKLIST_CHECK", true),

@@ -166,6 +166,9 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 	{12, `
 -- resumable import cursors
 `},
+	{13, `
+-- reply classification results + suppression reason on person
+`},
 }
 
 func (s *Store) migrate() error {
@@ -255,6 +258,12 @@ func (s *Store) migrate() error {
 		}
 		if m.version == 12 {
 			if err := upgradeImportCursor(tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("migration %d: %w", m.version, err)
+			}
+		}
+		if m.version == 13 {
+			if err := upgradeReplyClassification(tx); err != nil {
 				_ = tx.Rollback()
 				return fmt.Errorf("migration %d: %w", m.version, err)
 			}
@@ -795,4 +804,25 @@ CREATE TABLE IF NOT EXISTS import_cursor (
 CREATE INDEX IF NOT EXISTS idx_import_cursor_open ON import_cursor(source, completed_at);
 `)
 	return err
+}
+
+// upgradeReplyClassification stores each reply's classification alongside it.
+// intent_points is denormalised so recomputing every person's score is one
+// aggregate query rather than a category lookup per reply in Go.
+func upgradeReplyClassification(tx *tx) error {
+	for _, q := range []string{
+		`ALTER TABLE inbound_replies ADD COLUMN category TEXT DEFAULT ''`,
+		`ALTER TABLE inbound_replies ADD COLUMN ask TEXT DEFAULT ''`,
+		`ALTER TABLE inbound_replies ADD COLUMN intent_points INTEGER DEFAULT 0`,
+		`ALTER TABLE inbound_replies ADD COLUMN classify_reason TEXT DEFAULT ''`,
+		`ALTER TABLE inbound_replies ADD COLUMN revisit_at TEXT`,
+	} {
+		if _, err := tx.Exec(q); err != nil {
+			// Column may already exist from a partial earlier run; the
+			// savepoint wrapper keeps the transaction usable either way.
+			continue
+		}
+	}
+	_, _ = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_replies_classify ON inbound_replies(classifier_version)`)
+	return nil
 }
