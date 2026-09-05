@@ -22,7 +22,7 @@ func (s *Store) ClassifyReplies(workspaceID int64, limit int) (int, error) {
 	}
 	rows, err := s.db.Query(`
 SELECT r.id, COALESCE(r.category_raw,''), COALESCE(r.subject,''), COALESCE(r.body,''),
-       r.created_at, COALESCE(r.auto_reply,0)
+       r.created_at, COALESCE(r.auto_reply,0), COALESCE(r.prompt_sent_at,'')
 FROM inbound_replies r
 WHERE COALESCE(r.classifier_version,0) < ?
   AND (r.workspace_id = ? OR ? = 0)
@@ -33,18 +33,19 @@ LIMIT ?`, classify.Version, workspaceID, workspaceID, limit)
 	}
 
 	type pending struct {
-		id        int64
-		raw       string
-		subject   string
-		body      string
-		createdAt string
-		ignore    bool
+		id         int64
+		raw        string
+		subject    string
+		body       string
+		createdAt  string
+		promptSent string
+		ignore     bool
 	}
 	var batch []pending
 	for rows.Next() {
 		var p pending
 		var ignore int
-		if err := rows.Scan(&p.id, &p.raw, &p.subject, &p.body, &p.createdAt, &ignore); err != nil {
+		if err := rows.Scan(&p.id, &p.raw, &p.subject, &p.body, &p.createdAt, &ignore, &p.promptSent); err != nil {
 			rows.Close()
 			return 0, err
 		}
@@ -64,9 +65,9 @@ LIMIT ?`, classify.Version, workspaceID, workspaceID, limit)
 			Subject:           p.subject,
 			Body:              p.body,
 			RepliedAt:         parseTime(p.createdAt),
-			// SentAt is left zero here: the reply-latency rule needs the
-			// prompting send, which the historical import does not link. Text
-			// and Smartlead's own flag still apply.
+			// The prompting send, when the import recorded it. A reply that
+			// lands seconds after it was not typed by a person.
+			SentAt: parseTime(p.promptSent),
 		})
 		points, _ := classify.IntentPoints(res)
 		if _, err := s.db.Exec(`
@@ -81,6 +82,28 @@ WHERE id = ?`,
 		n++
 	}
 	return n, nil
+}
+
+// SetReplyImportMeta records what the import knows about a reply beyond its
+// text: Smartlead's own category, and when the send that prompted it went out.
+// Both come from the statistics row rather than the message thread, so they
+// have to be attached after the reply is created.
+//
+// classifier_version is reset to 0 so the next sweep reclassifies with this new
+// evidence rather than trusting an earlier, blinder verdict.
+func (s *Store) SetReplyImportMeta(replyID int64, categoryRaw string, promptSentAt string, ignoreReply bool) error {
+	if replyID == 0 {
+		return nil
+	}
+	var sent any
+	if promptSentAt != "" {
+		sent = promptSentAt
+	}
+	_, err := s.db.Exec(`
+UPDATE inbound_replies
+SET category_raw = ?, prompt_sent_at = ?, auto_reply = ?, classifier_version = 0
+WHERE id = ?`, categoryRaw, sent, boolInt(ignoreReply), replyID)
+	return err
 }
 
 // signalInput is the per-person aggregate the scorer needs.

@@ -169,6 +169,9 @@ CREATE TABLE IF NOT EXISTS oauth_states (
 	{13, `
 -- reply classification results + suppression reason on person
 `},
+	{14, `
+-- link a reply to the send that prompted it, for auto-reply latency detection
+`},
 }
 
 func (s *Store) migrate() error {
@@ -264,6 +267,12 @@ func (s *Store) migrate() error {
 		}
 		if m.version == 13 {
 			if err := upgradeReplyClassification(tx); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("migration %d: %w", m.version, err)
+			}
+		}
+		if m.version == 14 {
+			if err := upgradeReplyPromptTime(tx); err != nil {
 				_ = tx.Rollback()
 				return fmt.Errorf("migration %d: %w", m.version, err)
 			}
@@ -824,5 +833,14 @@ func upgradeReplyClassification(tx *tx) error {
 		}
 	}
 	_, _ = tx.Exec(`CREATE INDEX IF NOT EXISTS idx_replies_classify ON inbound_replies(classifier_version)`)
+	return nil
+}
+
+// upgradeReplyPromptTime stores when the send that prompted a reply went out.
+// Without it the auto-reply latency rule cannot run on imported history, and
+// latency is the strongest auto-reply signal available — Smartlead's own
+// ignore_reply flag misses roughly half of them.
+func upgradeReplyPromptTime(tx *tx) error {
+	_, _ = tx.Exec(`ALTER TABLE inbound_replies ADD COLUMN prompt_sent_at TEXT`)
 	return nil
 }

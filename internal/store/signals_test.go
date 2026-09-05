@@ -34,7 +34,9 @@ func seedProspect(t *testing.T, st *Store, name, email string, sentMonthsAgo flo
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if category != "" {
+	// A reply exists whenever there is body text; the category is separate
+	// because the import can supply one without the other.
+	if body != "" {
 		ws, lid := int64(1), leadID
 		if _, err := st.CreateReply(models.InboundReply{
 			WorkspaceID: &ws, LeadID: &lid, FromEmail: email, Subject: "Re: Hi",
@@ -42,10 +44,12 @@ func seedProspect(t *testing.T, st *Store, name, email string, sentMonthsAgo flo
 		}); err != nil {
 			t.Fatal(err)
 		}
-		// Stand in for what the importer stores from lead_category.
-		if _, err := st.db.Exec(`UPDATE inbound_replies SET category_raw = ? WHERE from_email = ?`,
-			category, email); err != nil {
-			t.Fatal(err)
+		if category != "" {
+			// Stand in for what the importer stores from lead_category.
+			if _, err := st.db.Exec(`UPDATE inbound_replies SET category_raw = ? WHERE from_email = ?`,
+				category, email); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	if _, err := st.BackfillProspects(); err != nil {
@@ -238,5 +242,83 @@ func TestRecomputeIsIdempotent(t *testing.T) {
 	}
 	if rowCount != first {
 		t.Errorf("person_signal has %d rows for %d people — recompute is duplicating", rowCount, first)
+	}
+}
+
+// The gap this closes: Smartlead's category and the prompting send time both
+// live on the statistics row, not in the message thread, so without carrying
+// them across every imported reply classifies as "uncategorized" — which is
+// exactly what the first production run produced.
+func TestReplyImportMetaEnablesClassification(t *testing.T) {
+	st := newTestStore(t)
+	seedProspect(t, st, "Ada Lovelace", "ada@ex.com", 20, "", "Can we meet next week?")
+
+	var replyID int64
+	if err := st.db.QueryRow(`SELECT id FROM inbound_replies LIMIT 1`).Scan(&replyID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Without the metadata there is nothing to classify on.
+	if _, err := st.ClassifyReplies(1, 0); err != nil {
+		t.Fatal(err)
+	}
+	var cat string
+	if err := st.db.QueryRow(`SELECT category FROM inbound_replies WHERE id = ?`, replyID).Scan(&cat); err != nil {
+		t.Fatal(err)
+	}
+	if cat != string(classify.Uncategorized) {
+		t.Fatalf("category = %s, expected uncategorized without import metadata", cat)
+	}
+
+	// Attaching it re-opens the reply for classification.
+	sent := time.Now().UTC().Add(-21 * 30 * 24 * time.Hour)
+	if err := st.SetReplyImportMeta(replyID, "Meeting Request", fmtTime(sent), false); err != nil {
+		t.Fatal(err)
+	}
+	n, err := st.ClassifyReplies(1, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("reclassified %d, want 1 — setting metadata must reset classifier_version", n)
+	}
+	var points int
+	if err := st.db.QueryRow(`SELECT category, intent_points FROM inbound_replies WHERE id = ?`, replyID).
+		Scan(&cat, &points); err != nil {
+		t.Fatal(err)
+	}
+	if cat != string(classify.Interested) || points != 55 {
+		t.Errorf("category/points = %s/%d, want interested/55", cat, points)
+	}
+}
+
+// Latency detection needs the prompting send, which only the import can supply.
+func TestPromptSentAtDrivesLatencyDetection(t *testing.T) {
+	st := newTestStore(t)
+	seedProspect(t, st, "Bot Mailbox", "bot@ex.com", 20, "", "Thanks for your message")
+
+	var replyID int64
+	var repliedAt string
+	if err := st.db.QueryRow(`SELECT id, created_at FROM inbound_replies LIMIT 1`).Scan(&replyID, &repliedAt); err != nil {
+		t.Fatal(err)
+	}
+	// The send went out three seconds before the "reply" arrived.
+	sent := parseTime(repliedAt).Add(-3 * time.Second)
+	if err := st.SetReplyImportMeta(replyID, "Interested", fmtTime(sent), false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ClassifyReplies(1, 0); err != nil {
+		t.Fatal(err)
+	}
+	var auto, points int
+	if err := st.db.QueryRow(`SELECT auto_reply, intent_points FROM inbound_replies WHERE id = ?`, replyID).
+		Scan(&auto, &points); err != nil {
+		t.Fatal(err)
+	}
+	if auto != 1 {
+		t.Error("a reply 3 seconds after the send must be detected as automated")
+	}
+	if points != 0 {
+		t.Errorf("intent_points = %d, want 0 despite Smartlead calling it Interested", points)
 	}
 }

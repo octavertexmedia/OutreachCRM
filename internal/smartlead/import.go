@@ -250,6 +250,15 @@ func Run(st *store.Store, c *Client, opt Options) (Stats, error) {
 		slog.Info("smartlead campaign leads done", "id", camp.ID, "leads", leadCount)
 
 		repliedEmails := map[string]bool{}
+		// Smartlead's own reply classification and the send that prompted the
+		// reply both live on the statistics row, not in the message thread, so
+		// they have to be carried across to where the reply is created.
+		type statMeta struct {
+			category    string
+			ignoreReply bool
+			sentAt      string
+		}
+		replyMeta := map[string]statMeta{}
 		var writes int
 		crmSteps, _ := st.ListSteps(localCamp)
 		var statsSeen int
@@ -261,6 +270,15 @@ func Run(st *store.Store, c *Client, opt Options) (Stats, error) {
 				}
 				if row.Replied {
 					repliedEmails[email] = true
+				}
+				if row.Replied || row.Category != "" {
+					// Keep the latest row for this address: later sequence
+					// steps carry the most recent category.
+					replyMeta[email] = statMeta{
+						category:    row.Category,
+						ignoreReply: row.IgnoreReply,
+						sentAt:      row.SentAt,
+					}
 				}
 				if opt.DryRun {
 					out.Outbound++
@@ -330,7 +348,8 @@ func Run(st *store.Store, c *Client, opt Options) (Stats, error) {
 					ws := out.WorkspaceID
 					oid := ownerID
 					at := store.ParseImportTime(msg.At)
-					_, err := st.CreateReply(models.InboundReply{
+					meta := replyMeta[email]
+					replyID, err := st.CreateReply(models.InboundReply{
 						OwnerID: &oid, WorkspaceID: &ws, LeadID: &lid,
 						LeadName:  LeadDisplayName(ld.FirstName, ld.LastName, ld.Email),
 						FromEmail: ld.Email, Subject: msg.Subject, Body: msg.Body,
@@ -343,6 +362,12 @@ func Run(st *store.Store, c *Client, opt Options) (Stats, error) {
 						}
 						out.err("reply " + email + ": " + err.Error())
 						continue
+					}
+					// Attach what the statistics row knew: Smartlead's own
+					// category, and when the prompting send went out so the
+					// classifier can apply its latency rule to old history.
+					if err := st.SetReplyImportMeta(replyID, meta.category, meta.sentAt, meta.ignoreReply); err != nil {
+						out.err("reply meta " + email + ": " + err.Error())
 					}
 					out.Replies++
 					writes++
